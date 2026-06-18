@@ -17,9 +17,10 @@ const login = async(req, res) => {
         if(!user){
             return res.status(httpStatus.NOT_FOUND).json({message: "User not found"});
         }
+
+        let isPasswordCorrect = await bcrypt.compare(password, user.password);
         
-        if(await bcrypt.compare(password, user.password)){
-            
+        if(isPasswordCorrect){
             // Generate a cryptographically secure random session token
             let token = crypto.randomBytes(20).toString("hex"); 
 
@@ -27,7 +28,10 @@ const login = async(req, res) => {
             await user.save();
 
             // Return only the token to client — avoids exposing sensitive user data in localStorage
-            return res.status(httpStatus.OK).json({token : token});            
+            return res.status(httpStatus.OK).json({ token : token });            
+        }
+        else{
+            return res.status(httpStatus.UNAUTHORIZED).json({message: "Invalid Username or Password"});
         }
 
     } catch(err) {
@@ -42,7 +46,7 @@ const register = async(req, res) => {
         const existingUser = await User.findOne({username});
 
         if(existingUser){
-            return res.status(httpStatus.FOUND).json({message: "User already exists"});
+            return res.status(httpStatus.FOUND).json({message: "User already exists. Please sign in to continue"});
         } 
 
         // Generates a 16-byte Base64 salt, combines it with password, runs hashing 2^10 (1024) times
@@ -57,7 +61,7 @@ const register = async(req, res) => {
 
         await newUser.save();
 
-        res.status(httpStatus.CREATED).json({message: "User registered"});
+        res.status(httpStatus.CREATED).json({message: "Welcome to Connectify. Please sign in to continue"});
 
     } catch(err) {
         res.json({message: `Something went wrong ${err}`});
