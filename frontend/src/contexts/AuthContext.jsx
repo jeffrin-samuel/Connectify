@@ -33,7 +33,7 @@ export const AuthProvider = ( {children} ) => {
 
         } catch(err) {
             console.error("User register error: ", err);
-            throw err;
+            throw err;  //err bubbles up to Authentication.jsx (handled in frontend)
         }
     }
 
@@ -52,7 +52,7 @@ export const AuthProvider = ( {children} ) => {
 
         } catch(err) {
             console.error("User login error: ", err);
-            throw err;
+            throw err; //err bubbles up to Authentication.jsx (handled in frontend)
         }
     }
 
