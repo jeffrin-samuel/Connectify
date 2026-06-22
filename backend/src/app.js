@@ -3,7 +3,7 @@ import "dotenv/config";
 import express from "express";
 
 import {createServer} from "node:http"; // Wraps Express to expose raw HTTP server for WebSocket upgrade
-import {connectToSocket} from "./controllers/socketManager.js"; // Enables real-time bidirectional communication for WebRTC signaling
+import connectToSocket from "./controllers/socketManager.js"; // Enables real-time bidirectional communication for WebRTC signaling
 
 import mongoose from "mongoose";
 

@@ -4,7 +4,7 @@ let connections = {}
 let messages = {}
 let timeOnline = {}
 
-export const connectToSocket = (server) => {
+export default function connectToSocket(server) {
     const io = new Server(server, {
         cors: {
             origin: "*",
@@ -29,7 +29,7 @@ export const connectToSocket = (server) => {
                 io.to(connections[path][i]).emit("user-joined", socket.id);
             }
 
-            if(messages[path] !== undefined){      //WHAT's THIS?
+            if(messages[path] !== undefined){     
                 for(let i = 0; i < messages[path].length; ++i){
                     io.to(socket.id).emit("chat-message", messages[path][i]['data'],
                         messages[path][i]['sender'], messages[path][i]['socket-id-sender']
@@ -45,7 +45,7 @@ export const connectToSocket = (server) => {
 
         socket.on("chat-message", (data, sender) => {
 
-            const [matchingRoom, found] = Object.entries(connections)   //What's this Higher-Order functions?
+            const [matchingRoom, found] = Object.entries(connections)   
             .reduce(( [room, isFound], [roomKey, roomValue]) => {
 
                 if(!isFound && roomValue.includes(socket.id)) {
@@ -63,7 +63,7 @@ export const connectToSocket = (server) => {
                 messages[matchingRoom].push({ "sender": sender, "data": data, "socket-id-sender": socket.id }); 
                 console.log("message", ":", sender, data);
 
-                connections[matchingRoom].forEach(elem => {    //what elem demonstrates here? attendees in that room?
+                connections[matchingRoom].forEach(elem => {    
                     io.to(elem).emit("chat-message", data, sender, socket.id);
                 });
             }
@@ -75,10 +75,10 @@ export const connectToSocket = (server) => {
             
             let roomKey;
 
-            for (const[room, attendees] of JSON.parse(JSON.stringify(Object.entries(connections)))) {  //deep copy since we have to drop keys and all when user disconnects
+            for (const[room, attendees] of JSON.parse(JSON.stringify(Object.entries(connections)))) {  //Deep copy since we have to drop keys and all when user disconnects
 
                 for(let i = 0; i < attendees.length; ++i){    
-                    if(attendees[i] == socket.id){   //if it matches with the socketId of disconnected user
+                    if(attendees[i] == socket.id){   //If matches with the socketId of disconnected user
                         roomKey = room;
 
                         for(let j = 0; j < connections[roomKey].length; ++j){    
@@ -89,7 +89,7 @@ export const connectToSocket = (server) => {
 
                         connections[roomKey].splice(index, 1); //remove that socket id from the attendees list in that specific room
 
-                        if(connections[roomKey].length == 0){   //if no one in the room
+                        if(connections[roomKey].length == 0){   //If no one in the room
                             delete connections[roomKey];
                         }
                     }

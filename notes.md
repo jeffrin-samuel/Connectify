@@ -70,6 +70,22 @@
     - [Entire Flow — Putting It All Together (Corrected)](#entire-flow--putting-it-all-together-corrected)
     - [Edge Case: TTL Expiry for Existing Long-Running Calls](#edge-case-ttl-expiry-for-existing-long-running-calls)
     - [Edge Case: Asymmetric NAT — When Only One Peer Needs Relay](#edge-case-asymmetric-nat--when-only-one-peer-needs-relay)
+
+    16. [React & JS Gotchas — VideoMeet Specific](#16-react--js-gotchas--videomeet-specific)
+    - [React State Setter is Async — The Most Common Trap](#react-state-setter-is-async--the-most-common-trap)
+    - [async/await vs React State — Why You Can't await a Setter](#asyncawait-vs-react-state--why-you-cant-await-a-setter)
+    - [!! Double Bang — Existence Check Shorthand](#-double-bang--existence-check-shorthand)
+    - [navigator — The Browser's Hardware Gateway](#navigator--the-browsers-hardware-gateway)
+    - [MediaStream & Tracks — What They Actually Are](#mediastream--tracks--what-they-actually-are)
+    - [track.stop() vs track.enabled — Two Very Different Things](#trackstop-vs-trackenabled--two-very-different-things)
+    - [window.localStream — Why Global](#windowlocalstream--why-global)
+    - [getUserMedia — Why Two Separate Calls](#getusermedia--why-two-separate-calls)
+    - [getUserMedia Toggle Logic — Why Only Two Branches Needed](#getusermedia-toggle-logic--why-only-two-branches-needed)
+    - [useEffect + State Setter Pattern — Why getMedia Works This Way](#useeffect--state-setter-pattern--why-getmedia-works-this-way)
+    - [getDisplayMedia — Permission vs Feature Existence](#getdisplaymedia--permission-vs-feature-existence)
+    - [VideoMeet — Complete Current Flow (Phase 1 & Phase 2)](#videomeet--complete-current-flow-phase-1--phase-2)
+    - [localVideoRef — What It Is, Why It's Checked, and the Edge Case](#localvideoref--what-it-is-why-its-checked-and-the-edge-case)
+
 ---
 
 ## 1. Express vs Node.js
@@ -1955,5 +1971,686 @@ CLIENT B → CLIENT B's OWN relay (the one reliable channel B has) → "forward 
 Both directions of B's traffic route through **B's single relay** — not because each side has a separate relay the other uses symmetrically, but because B's relay is B's *only* proven-reliable channel, used for both sending and receiving. A, meanwhile, never touches a relay at all for its own traffic — it communicates via its real address throughout.
 
 **This only becomes fully symmetric (each side using the other's separate relay) if BOTH peers are behind restrictive networks** — then yes, each would have their own relay, and each would send to the other's relay address. With only one restricted peer, only one relay is ever actually used, for both directions of that peer's traffic.
+
+---
+
+## 16. React & JS Gotchas — VideoMeet Specific
+
+### React State Setter is Async — The Most Common Trap
+
+This is the single most common mistake beginners make in React, and it will
+bite you repeatedly across this whole project if you don't lock it in now.
+
+When you call a setter like `setVideoAvailable(true)`, React does NOT update
+`videoAvailable` immediately. React **schedules** the update and applies it
+on the next render cycle — which happens asynchronously, sometime after your
+current function finishes running.
+
+So this code is broken, even though it looks perfectly reasonable:
+
+```javascript
+// ❌ WRONG
+setVideoAvailable(true);
+if (videoAvailable) {
+  // videoAvailable is STILL false here — the setter ran, but the value
+  // hasn't updated yet. This if block will never execute.
+}
+```
+
+**The fix: use a local variable for same-function logic. Use the setter
+only to update what React displays on screen.**
+
+```javascript
+// ✅ CORRECT
+let isVideoAvailable = true;       // local variable — updates instantly
+setVideoAvailable(isVideoAvailable); // tells React to update the UI display
+if (isVideoAvailable) {            // reads the local variable, not the state
+  // this works correctly
+}
+```
+
+Two separate jobs:
+- **Local variable** = for logic happening inside this function right now
+- **State setter** = for telling React to re-render the UI with the new value
+
+---
+
+### async/await vs React State — Why You Can't await a Setter
+
+You might wonder: "if setters are async, can't I just await them?"
+
+No — and this is an important distinction.
+
+`async/await` in JavaScript only works with things that return a **Promise**
+— a special object that says "I'll give you a value later, you can wait for
+me." Examples that return Promises:
+- `fetch()` — waiting for a network response
+- `navigator.mediaDevices.getUserMedia()` — waiting for camera/mic access
+- Database queries — waiting for data from a database
+
+React's setter functions (`setVideo`, `setAudio`, `setVideoAvailable` etc.)
+do **NOT** return a Promise. They return `undefined`. There is nothing to
+await.
+
+```javascript
+await setVideoAvailable(true);
+// ❌ This compiles without errors but does absolutely nothing useful.
+// await on undefined just continues immediately — same as not having await.
+// videoAvailable is STILL the old value after this line.
+```
+
+React manages its own internal update scheduler that is completely separate
+from JavaScript's Promise/await system. They are two different async
+mechanisms that don't interact with each other at all.
+
+**Simple rule to remember:**
+- `await` = works only on Promises
+- React state setters = never return Promises
+- Therefore: `await` on a setter = useless, always
+
+---
+
+### !! Double Bang — Existence Check Shorthand
+
+In JavaScript, every single value — whether it's a number, string, function,
+object, `undefined`, anything — can be evaluated as either "yes" or "no"
+in a boolean context. This is called **truthy/falsy**:
+
+**Falsy values** (count as "no"): `false`, `0`, `""`, `null`, `undefined`, `NaN`
+**Truthy values** (count as "yes"): literally everything else — including
+functions, objects, arrays, and even the number `42`
+
+The single `!` operator flips a value to its opposite boolean:
+```javascript
+!true         // → false
+!false        // → true
+!undefined    // → true  (undefined is falsy, flip it → true)
+!function(){} // → false (a function exists = truthy, flip it → false)
+```
+
+The double `!!` flips it twice — net result: you get a clean `true` or
+`false` representing whether something exists:
+
+```javascript
+// Step by step for !!undefined:
+// undefined is falsy
+// !undefined → true (flipped once)
+// !!undefined → false (flipped back)
+// result: false — "this thing doesn't exist"
+
+// Step by step for !!function(){}:
+// a function is truthy (it exists)
+// !function(){} → false (flipped once)
+// !!function(){} → true (flipped back)
+// result: true — "this thing exists"
+```
+
+In your code:
+```javascript
+setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
+```
+
+- Chrome/Firefox (supports screen share): `getDisplayMedia` is a real
+  function → truthy → `!!` → `true`
+- Old browser (no support): `getDisplayMedia` is `undefined` → falsy →
+  `!!` → `false`
+
+This controls whether the Share Screen button shows in your UI at all.
+No point showing a button that can never work.
+
+---
+
+### navigator — The Browser's Hardware Gateway
+
+`navigator` is a built-in browser object that gives you access to
+information about the browser itself and the device's hardware.
+
+```javascript
+navigator.mediaDevices          // access to camera, microphone, screen sharing
+navigator.mediaDevices.getUserMedia()    // request camera and/or microphone
+navigator.mediaDevices.getDisplayMedia() // request screen sharing
+navigator.onLine                // is the device currently online?
+navigator.language              // user's browser language ("en-US" etc.)
+```
+
+`getUserMedia()` and `getDisplayMedia()` don't just "turn on" your camera
+or screen — they first show the browser's **permission prompt** to the user
+("This site wants to use your camera"), wait for the user's response, and
+only then either give you a stream (if allowed) or throw an error (if denied).
+
+---
+
+### MediaStream & Tracks — What They Actually Are
+
+When `getUserMedia()` succeeds, it gives you back a **MediaStream** object.
+Think of it as a container/bag that holds one or more live data flows.
+
+Each individual data flow inside that bag is called a **MediaStreamTrack**.
+One track = one type of media. Always either video OR audio, never both
+in a single track.
+
+```javascript
+// When you request both video and audio:
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: true,
+  audio: true
+});
+
+// stream is a MediaStream containing TWO tracks:
+stream.getTracks()       // → [videoTrack, audioTrack]
+stream.getVideoTracks()  // → [videoTrack] only
+stream.getAudioTracks()  // → [audioTrack] only
+```
+
+What a MediaStreamTrack looks like (simplified):
+```javascript
+MediaStreamTrack {
+  kind: "video",              // or "audio"
+  label: "Built-in Camera",  // human-readable device name
+  enabled: true,              // is it currently transmitting?
+  readyState: "live",         // "live" or "ended"
+  // + continuous raw binary data flowing through it
+}
+```
+
+---
+
+### track.stop() vs track.enabled — Two Very Different Things
+
+This distinction matters a lot for toggle buttons (mute/unmute,
+camera on/off). They look similar but do completely different things:
+
+| | `track.stop()` | `track.enabled = false` |
+|---|---|---|
+| What it does | Permanently kills the track | Pauses it, keeps it alive |
+| Camera light | Goes off | Usually stays on |
+| To turn back on | Need a completely new `getUserMedia()` call | Just set `track.enabled = true` |
+| Use for | End call / leave meeting | Mute/unmute toggle buttons |
+
+```javascript
+// Permanently stop — use when leaving call
+stream.getTracks().forEach(track => track.stop());
+
+// Temporarily mute audio — use for mute button
+stream.getAudioTracks().forEach(track => track.enabled = false);
+
+// Unmute — instant, no new getUserMedia needed
+stream.getAudioTracks().forEach(track => track.enabled = true);
+
+// Turn off camera — use for camera toggle button
+stream.getVideoTracks().forEach(track => track.enabled = false);
+```
+
+**Real-world analogy:**
+- `track.stop()` = unplugging your microphone from the wall
+- `track.enabled = false` = putting your hand over the microphone
+
+One is permanent hardware release. The other is a soft pause you can
+instantly undo.
+
+---
+
+### window.localStream — Why Global
+
+After `getUserMedia()` gives you the user's camera+mic stream, you need
+to store it somewhere that's accessible from **anywhere** in your app —
+not just inside the function that originally got it.
+
+```javascript
+window.localStream = userMediaStream;
+```
+
+Storing it on the global `window` object means any other function anywhere
+in your app can read it. This matters specifically because WebRTC peer
+connection setup (adding your stream to a connection so the other person
+can see/hear you) happens inside **socket event callbacks** — functions
+that run at a completely different time, triggered by the server, with no
+access to local variables from `getPermissions()` which finished long ago.
+
+```javascript
+// Inside a socket event handler (runs later, triggered by server):
+connections[socketListId].addStream(window.localStream); // ✅ works
+connections[socketListId].addStream(userMediaStream);    // ❌ userMediaStream
+                                                          // is out of scope here
+```
+
+**Is this the same as a global variable?** Almost, yes. A module-level
+`let localStream = null` declared outside the component would also work.
+`window.localStream` is slightly more universal (accessible even from the
+browser console for debugging) but conceptually the same idea — a place
+to store something that outlives any individual function call.
+
+---
+
+### getUserMedia — Why Two Separate Calls
+
+Inside `getPermissions()`, `getUserMedia` is called three times total, and
+it's confusing why. Here's the precise reason for each:
+
+**Call 1 — permission check only (video):**
+```javascript
+await navigator.mediaDevices.getUserMedia({ video: true });
+isVideoAvailable = true;
+```
+Just knocking on the door. The stream returned here is **immediately
+thrown away** — we only care whether it threw an error or not. If it
+didn't throw, permission was granted.
+
+**Call 2 — permission check only (audio):**
+```javascript
+await navigator.mediaDevices.getUserMedia({ audio: true });
+isAudioAvailable = true;
+```
+Same — purely checking. Result discarded.
+
+**Call 3 — the real stream (video + audio combined):**
+```javascript
+const userMediaStream = await navigator.mediaDevices.getUserMedia({
+  video: isVideoAvailable,
+  audio: isAudioAvailable,
+});
+window.localStream = userMediaStream; // THIS one gets kept and used
+```
+This is the actual stream we use — one combined stream with both tracks
+together. Stored globally, shown in the lobby video element, later added
+to peer connections.
+
+**Why not just use the result from Call 1 and Call 2?**
+Because they were separate — one video-only, one audio-only. You need
+a single combined stream. Also, the permission prompts may have been
+dismissed by then. The third call gets a clean, combined, ready-to-use
+stream.
+
+---
+
+### getUserMedia Toggle Logic — Why Only Two Branches Needed
+
+When a user toggles video or audio on/off during a live call, you might
+think you need separate cases for every combination. You don't — because
+`getUserMedia` already handles all combinations based on what you pass it:
+
+```javascript
+{ video: true,  audio: true  } // → stream with both tracks
+{ video: false, audio: true  } // → stream with audio track only
+{ video: true,  audio: false } // → stream with video track only
+{ video: false, audio: false } // → this case = no stream needed at all
+```
+
+So you only need two branches:
+
+```javascript
+let getUserMedia = () => {
+  if ((video && videoAvailable) || (audio && audioAvailable)) {
+    // At least one is on AND permitted — one call handles all three valid combos
+    navigator.mediaDevices.getUserMedia({ video: video, audio: audio })
+      .then((stream) => getUserMediaSuccess(stream))
+      .catch((e) => console.error("getUserMedia error:", e));
+
+  } else {
+    // Both off — no stream to request, just release hardware entirely
+    try {
+      let tracks = localVideoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    } catch (err) {
+      console.error("Error stopping tracks:", err);
+    }
+  }
+};
+```
+
+Note: `video && videoAvailable` checks BOTH the user's toggle AND whether
+permission was granted. No point requesting video if the user denied camera
+access — it would just throw an error.
+
+---
+
+### useEffect + State Setter Pattern — Why getMedia Works This Way
+
+```javascript
+let getMedia = () => {
+  setVideo(videoAvailable);   // schedules state update — doesn't apply yet
+  setAudio(audioAvailable);   // schedules state update — doesn't apply yet
+  // getUserMedia() is NOT called here — calling it here would read stale values
+};
+
+useEffect(() => {
+  if (video !== undefined && audio !== undefined) {
+    getUserMedia(); // only runs AFTER video and audio state have actually updated
+  }
+}, [audio, video]); // dependency array — re-runs whenever either of these changes
+```
+
+**Why not just call `getUserMedia()` directly after the setters?**
+
+Because setters are async (see section above) — `video` and `audio` would
+still have their OLD values by the time `getUserMedia()` runs. It would
+request the wrong combination entirely.
+
+`useEffect` with a dependency array solves this: React guarantees that by
+the time `useEffect` runs, the state update from the setters has been
+applied. So `getUserMedia()` always sees the correct, updated values.
+
+**The bonus:** this same `useEffect` also handles future toggles
+automatically. Any time the user clicks the mute button or camera button
+(which calls `setAudio(!audio)` or `setVideo(!video)`), the state changes
+→ `useEffect` detects the change → `getUserMedia()` runs with the new
+values, automatically. You write the toggle handler once and this takes
+care of the rest.
+
+```javascript
+// This is all a toggle button needs — useEffect handles the rest:
+let handleVideo = () => setVideo(!video);
+let handleAudio = () => setAudio(!audio);
+```
+
+---
+
+### getDisplayMedia — Permission vs Feature Existence
+
+Important distinction: `navigator.mediaDevices.getDisplayMedia` being a
+function (truthy) has **nothing to do with whether the user has granted
+screen share permission.**
+
+```javascript
+setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia);
+```
+
+This only answers: **"does this browser support screen sharing at all?"**
+
+| Situation | Value of `getDisplayMedia` | `!!` result |
+|---|---|---|
+| Chrome, Firefox, Edge (support it) | The function itself | `true` |
+| Old browser or some mobile browsers | `undefined` | `false` |
+| User granted screen share permission | Still the function | `true` |
+| User denied screen share permission | Still the function | `true` |
+
+The user's permission decision happens much later — only when you actually
+**call** `getDisplayMedia()` (with parentheses), which triggers the browser's
+screen picker popup. This line runs before any of that.
+
+Think of it like checking whether a vending machine has a coffee button
+before you press it. `!!getDisplayMedia` = "does the machine have the
+button?" Pressing it and waiting = calling `getDisplayMedia()` = that's
+when permission gets asked.
+
+`setScreenAvailable` only controls whether the Share Screen button
+**appears in your UI at all** — no point showing a button that can never
+work on browsers that don't support screen sharing.
+
+
+### VideoMeet — Complete Current Flow (Phase 1 & Phase 2)
+
+#### What "mounted" and "unmounted" actually mean (clear this up first)
+
+React is NOT like a browser with actual separate pages. When you navigate
+in React (using React Router), you are NOT going to a "new page" —
+**you are still on the same single HTML page the entire time.**
+React just swaps out which components are rendered on screen.
+
+```
+Browser loads index.html — ONE page, forever
+│
+├── User visits /lobby
+│   React renders: <Lobby /> → MOUNTED (exists on screen, in memory)
+│
+├── User clicks Connect → navigates to /meeting
+│   React removes: <Lobby /> → UNMOUNTED (completely destroyed, gone from memory)
+│   React renders: <VideoMeet /> → MOUNTED (exists on screen, in memory)
+│
+└── User clicks Back → navigates back to /lobby
+    React removes: <VideoMeet /> → UNMOUNTED (completely destroyed, gone from memory)
+    React renders: <Lobby /> → MOUNTED (fresh start, no memory of before)
+```
+
+**Mounted** = currently rendered on screen, exists in memory RIGHT NOW
+**Unmounted** = removed from screen, completely destroyed, gone from memory forever
+
+Nothing to do with "previous page" or "next page." There IS no previous
+page in React — just one page swapping components in and out.
+
+---
+
+#### Phase 1: User visits the meeting URL (e.g. localhost:5173/abc123)
+
+```
+VideoMeet component mounts (appears on screen)
+│
+├── React renders all JSX first → <video ref={localVideoRef} /> appears in DOM
+│   └── localVideoRef.current = <video element> (automatically set by React)
+│
+└── useEffect([], []) fires ONCE after first render
+    └── getPermissions() starts running (async — runs in background)
+        │
+        ├── [1] Ask browser for VIDEO permission (separate try/catch)
+        │   ├── Granted → isVideoAvailable = true
+        │   └── Denied  → isVideoAvailable = false
+        │   (own try/catch — denial doesn't stop the audio check below)
+        │
+        ├── [2] Ask browser for AUDIO permission (separate try/catch)
+        │   ├── Granted → isAudioAvailable = true
+        │   └── Denied  → isAudioAvailable = false
+        │   (own try/catch — denial doesn't stop the rest of function)
+        │
+        │   WHY LOCAL VARIABLES and not setters directly?
+        │   setVideoAvailable() and setAudioAvailable() are async — they
+        │   don't update the value immediately. If we used them, the
+        │   checks below would still read the OLD values (false).
+        │   Local variables (isVideoAvailable) update instantly. ✅
+        │
+        ├── [3] Now update React state — for UI display only
+        │   ├── setVideoAvailable(isVideoAvailable) → updates UI
+        │   └── setAudioAvailable(isAudioAvailable) → updates UI
+        │
+        ├── [4] Check if browser even supports screen sharing
+        │   └── setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia)
+        │       !! = does this function EXIST on this browser? → true/false
+        │       NOT asking permission yet — just checking capability
+        │       Controls whether Share Screen button shows in UI at all
+        │
+        └── [5] If at least one permission was granted:
+            └── Get the REAL combined stream (video + audio together)
+                navigator.mediaDevices.getUserMedia({
+                  video: isVideoAvailable,  ← true = include video track
+                  audio: isAudioAvailable   ← true = include audio track
+                })
+                │
+                ├── Store globally → window.localStream = userMediaStream
+                │   (global so WebRTC peer connections can access it later
+                │    when socket callbacks run — local variables would be
+                │    out of scope by then)
+                │
+                └── Show preview in lobby video element:
+                    if (localVideoRef.current) {           ← safety guard (explained below)
+                      localVideoRef.current.srcObject = userMediaStream
+                    }
+
+User now sees the lobby:
+┌─────────────────────────────────┐
+│  Enter into Lobby               │
+│  [Username input field]         │
+│  [Connect button]               │
+│  [Live camera preview — muted]  │ ← autoPlay: stream plays automatically
+└─────────────────────────────────┘   muted: prevents user hearing own voice (echo)
+```
+
+---
+
+#### Phase 2: User clicks Connect button
+
+```
+connect() runs
+│
+├── setAskForUsername(false)
+│   └── React re-renders → lobby div hidden, meeting room div shown
+│       (the JSX ternary switches branch: askForUsername === true → false)
+│
+└── getMedia() runs
+    │
+    ├── setVideo(videoAvailable)   → schedules state update (async, not instant)
+    └── setAudio(audioAvailable)   → schedules state update (async, not instant)
+
+    WHY NOT call getUserMedia() directly here?
+    Because setters are async — video and audio state haven't updated yet.
+    Calling getUserMedia() here would read STALE old values (false).
+
+    ↓ React finishes applying both state updates ↓
+
+useEffect([audio, video]) detects both changed → fires
+│
+└── getUserMedia() runs (NOW reads correct, updated values)
+    │
+    ├── if (video && videoAvailable) || (audio && audioAvailable):
+    │   │
+    │   │   One call handles all valid combinations automatically:
+    │   │   { video: true,  audio: true  } → full stream (both tracks)
+    │   │   { video: false, audio: true  } → audio-only stream
+    │   │   { video: true,  audio: false } → video-only stream
+    │   │
+    │   └── navigator.mediaDevices.getUserMedia({ video: video, audio: audio })
+    │         .then(stream => getUserMediaSuccess(stream))  ← TODO: implemented next
+    │         .catch(e => console.error(e))
+    │
+    └── else (both video AND audio are off):
+        └── stop all tracks → releases camera/mic hardware entirely
+            (camera light goes off, microphone released)
+```
+
+---
+
+#### Phase 3: Screen sharing (TODO — not yet implemented)
+
+```
+setScreenAvailable(!!navigator.mediaDevices.getDisplayMedia)
+→ Already done in Phase 1 — just checks IF browser supports screen sharing
+→ Controls whether the Share Screen button appears in the UI
+
+When user clicks Share Screen button (coming next):
+handleScreen() → setScreen(!screen)
+↓
+useEffect([screen]) detects change → fires
+↓
+getDisplayMedia() runs
+↓
+navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+→ Browser shows screen picker popup (FIRST TIME permission is actually asked)
+→ User picks which screen/window/tab to share
+→ Granted → getDisplayMediaSuccess(stream) handles the rest
+→ Denied  → error caught, screen sharing cancelled
+
+Key difference from camera/mic:
+Camera/mic = browser asks once, remembers your choice forever
+Screen share = browser asks EVERY single time (never remembered — privacy by design)
+```
+
+---
+
+### localVideoRef — What It Is, Why It's Checked, and the Edge Case
+
+#### useRef vs useState — most confused pair in React
+
+```javascript
+useRef()    // { current: null }
+            // stores a reference to a DOM element (or any value)
+            // changing .current does NOT trigger a re-render
+            // used for: pointing at DOM elements, socketRef, videoRef
+
+useState()  // [value, setter]
+            // stores data that drives what the user sees on screen
+            // changing it DOES trigger a re-render
+            // used for: video on/off, messages, username, etc.
+```
+
+`localVideoRef` is a `useRef` — it's a pointer to the actual `<video>`
+HTML element in the DOM. It starts as `{ current: null }` and React
+automatically fills in `current` when the element appears on screen.
+
+#### React's order of operations — critical to understand
+
+React always does things in this exact order:
+
+```
+1. Runs your component function → figures out what JSX to render
+2. Renders the JSX → actual DOM elements appear on screen
+   └── ref={localVideoRef} seen → localVideoRef.current = <video element>
+3. THEN useEffect runs
+```
+
+So by the time `useEffect` fires and `getPermissions()` starts,
+`localVideoRef.current` is already pointing at the real `<video>` element.
+It is NOT null at this point.
+
+```
+Component function runs
+│
+├── [1] JSX rendered → <video ref={localVideoRef} autoPlay muted />
+│   └── React automatically: localVideoRef.current = <video element> ✅
+│   (localVideoRef.current is now NOT null)
+│
+└── [2] useEffect fires → getPermissions() runs
+    └── if (localVideoRef.current) → TRUE ✅
+        └── localVideoRef.current.srcObject = userMediaStream ✅ works
+```
+
+#### Why does the safety check still exist then?
+
+Because `getPermissions` is `async` — it has multiple `await` calls inside
+it. It does NOT finish instantly. It takes time:
+
+```
+getPermissions() starts
+│
+├── await getUserMedia({ video: true })    ← waiting for browser response
+├── await getUserMedia({ audio: true })    ← waiting for browser response
+└── await getUserMedia({ video, audio })   ← waiting for stream
+```
+
+During any of those `await` pauses, the user could navigate away.
+React would immediately unmount the component — removing the `<video>`
+element from the DOM and setting `localVideoRef.current` back to `null`.
+
+But the async function keeps running in the background. JavaScript does
+NOT cancel async functions when a component unmounts. The function is
+running in the browser's JS engine — unmounting only destroys the DOM
+elements and clears refs, it doesn't stop in-flight code.
+
+```
+getPermissions() starts running
+│
+├── await getUserMedia({ video: true })  ← user still on page, waiting...
+│
+├── await getUserMedia({ audio: true })  ← user still on page, waiting...
+│        ↑
+│        USER CLICKS BACK BUTTON HERE
+│        React unmounts VideoMeet immediately
+│        <video> element removed from DOM
+│        localVideoRef.current = null ← back to null
+│
+└── await getUserMedia({ video, audio }) ← resolves, async continues anyway
+    │
+    └── if (localVideoRef.current) {     ← null check → FALSE → skips safely ✅
+          localVideoRef.current.srcObject ← would have CRASHED without check ❌
+        }
+```
+
+#### The related "memory leak" warning
+
+This same unmount-while-async-running problem also affects state setters:
+
+```javascript
+// inside getPermissions(), after user navigated away:
+setVideoAvailable(true); // ← React warning:
+// "Can't perform a React state update on an unmounted component"
+// VideoMeet is gone — React has nowhere to apply this update
+```
+
+The `if (localVideoRef.current)` guard protects against the crash.
+For setters, the proper fix is an `isMounted` flag (advanced — not needed
+for this project, TTL is long enough that this is extremely unlikely in
+a portfolio demo scenario).
+
+#### One-line rule to remember
+
+> `localVideoRef.current` = null means the video element is not on screen.
+> Always check it before touching it inside async functions.
 
 ---
