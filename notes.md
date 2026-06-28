@@ -71,7 +71,7 @@
     - [Edge Case: TTL Expiry for Existing Long-Running Calls](#edge-case-ttl-expiry-for-existing-long-running-calls)
     - [Edge Case: Asymmetric NAT — When Only One Peer Needs Relay](#edge-case-asymmetric-nat--when-only-one-peer-needs-relay)
 
-    16. [React & JS Gotchas — VideoMeet Specific](#16-react--js-gotchas--videomeet-specific)
+16. [React & JS Gotchas — VideoMeet Specific](#16-react--js-gotchas--videomeet-specific)
     - [React State Setter is Async — The Most Common Trap](#react-state-setter-is-async--the-most-common-trap)
     - [async/await vs React State — Why You Can't await a Setter](#asyncawait-vs-react-state--why-you-cant-await-a-setter)
     - [!! Double Bang — Existence Check Shorthand](#-double-bang--existence-check-shorthand)
@@ -85,6 +85,26 @@
     - [getDisplayMedia — Permission vs Feature Existence](#getdisplaymedia--permission-vs-feature-existence)
     - [VideoMeet — Complete Current Flow (Phase 1 & Phase 2)](#videomeet--complete-current-flow-phase-1--phase-2)
     - [localVideoRef — What It Is, Why It's Checked, and the Edge Case](#localvideoref--what-it-is-why-its-checked-and-the-edge-case)
+
+17. [JWT Authentication — Complete Deep Dive](#17-jwt-authentication--complete-deep-dive)
+    - [What JWT Actually Is](#what-jwt-actually-is)
+    - [Session Token vs JWT — What Changed and Why](#session-token-vs-jwt--what-changed-and-why)
+    - [How a JWT Token is Structured](#how-a-jwt-token-is-structured)
+    - [Base64 Encoding — What It Actually Is](#base64-encoding--what-it-actually-is)
+    - [HMAC SHA256 — How the Signature Works](#hmac-sha256--how-the-signature-works)
+    - [How JWT Verification Works Internally](#how-jwt-verification-works-internally)
+    - [Why a Fake Token Always Fails](#why-a-fake-token-always-fails)
+    - [The Complete Auth Flow](#the-complete-auth-flow)
+    - [withAuth HOC — Frontend Route Protection](#withauth-hoc--frontend-route-protection)
+    - [authenticate Middleware — Backend Route Protection](#authenticate-middleware--backend-route-protection)
+    - [Token Versioning — Invalidating Old Sessions](#token-versioning--invalidating-old-sessions)
+    - [Axios Interceptor — Global 401 Handler](#axios-interceptor--global-401-handler)
+    - [error.response.status vs error.response.data.status](#errorresponsestatus-vs-errorresponsedatastatus)
+    - [JWT vs Refresh Tokens — Where This Project Sits](#jwt-vs-refresh-tokens--where-this-project-sits)
+    - [Full Code Reference](#full-code-reference)
+
+---
+
 
 ---
 
@@ -2652,5 +2672,792 @@ a portfolio demo scenario).
 
 > `localVideoRef.current` = null means the video element is not on screen.
 > Always check it before touching it inside async functions.
+
+---
+
+# 17. JWT Authentication — Complete Deep Dive
+
+---
+
+## What JWT Actually Is
+
+Before JWT, the old approach in this project was:
+
+```javascript
+// ❌ OLD approach — random session token
+let token = crypto.randomBytes(20).toString("hex");
+user.token = token;
+await user.save(); // stored in DB, checked against DB on every request
+```
+
+**Problem with random session token:**
+- Server has to hit the DB on EVERY request just to check "is this token valid?"
+- Random hex string has no structure — no way to verify who created it without DB
+- If DB goes down, no one can authenticate
+
+**JWT fixes all of this:**
+- Token is self-contained — server can verify it WITHOUT a DB lookup
+- Token is cryptographically signed — can't be forged without the secret
+- Any server in a cluster can verify independently — scales infinitely
+
+Think of JWT like a **government issued ID card**:
+- Your Aadhar card has your info printed on it (payload)
+- It has a hologram/stamp that only the government can create (signature)
+- Any police officer can verify it just by looking at it — no need to call the government (no DB lookup)
+- Someone can READ your info from the card (payload is visible) but can't FAKE the hologram (signature requires the secret)
+
+---
+
+## Session Token vs JWT — What Changed and Why
+
+| | Session Token (old) | JWT (current) |
+|--|--|--|
+| Storage | Saved in DB on every login | Never stored in DB |
+| Verification | DB lookup on every request | Signature check — no DB needed |
+| Fake token risk | Random string — hard to guess | Can't forge without JWT_SECRET |
+| Scalability | Every server needs DB access | Any server verifies independently |
+| Invalidation | Delete from DB (easy) | Needs token versioning (see below) |
+| Payload visible? | No (random string) | Yes (base64 encoded — NOT encrypted) |
+
+---
+
+## How a JWT Token is Structured
+
+A JWT looks like this — three parts separated by dots:
+
+```
+eyJhbGciOiJIUzI1NiJ9  .  eyJ1c2VySWQiOiI2NGYifQ  .  SflKxwRJSMeKKF2QT4fwpMeJf36P
+        HEADER                      PAYLOAD                      SIGNATURE
+```
+
+Each part is separated by `.` — you can literally split by `.` to get the three parts.
+
+### HEADER
+Describes the algorithm used to create the signature:
+```json
+{ "alg": "HS256", "typ": "JWT" }
+```
+- `alg: "HS256"` = HMAC SHA256 (the signing algorithm)
+- `typ: "JWT"` = this is a JWT
+
+This gets Base64URL encoded → becomes the first part of the token.
+
+### PAYLOAD
+The actual data you put inside:
+```json
+{
+  "userId": "64f3a2b1c9d4e5f6a7b8c9d0",
+  "username": "jeffrin",
+  "tokenVersion": 1,
+  "iat": 1700000000,
+  "exp": 1700604800
+}
+```
+- `iat` = issued at (timestamp when token was created) — added automatically by jwt.sign
+- `exp` = expiry timestamp — added automatically when you pass `expiresIn: "7d"`
+
+This gets Base64URL encoded → becomes the second part of the token.
+
+⚠️ **CRITICAL:** The payload is NOT encrypted — just Base64 encoded.
+Anyone can decode it and read your userId, username etc.
+**Never put passwords, card numbers, or sensitive data in a JWT payload.**
+
+### SIGNATURE
+The security part — proves the token wasn't tampered with:
+```
+HMAC_SHA256(
+  base64url(header) + "." + base64url(payload),
+  JWT_SECRET
+)
+```
+This gets Base64URL encoded → becomes the third part of the token.
+
+---
+
+## Base64 Encoding — What It Actually Is
+
+Base64 is NOT encryption. It's just a way to represent binary data as readable text.
+
+```
+Normal text:  { "userId": "64f" }
+Base64:       eyJ1c2VySWQiOiI2NGYifQ==
+```
+
+Anyone can decode it:
+```javascript
+atob("eyJ1c2VySWQiOiI2NGYifQ==")
+// → '{ "userId": "64f" }'
+```
+
+**Base64URL** (used in JWT) = same as Base64 but replaces `+` with `-` and `/` with `_`
+so the token is safe to use in URLs without encoding issues.
+
+Why use it at all? Because JSON contains characters like `{`, `"`, `:` that
+would break URL strings and HTTP headers. Base64URL makes it URL-safe.
+
+---
+
+## HMAC SHA256 — How the Signature Works
+
+HMAC = Hash-based Message Authentication Code
+SHA256 = the hashing algorithm used
+
+Think of it like a **padlock that only you have the key to:**
+
+```
+HMAC_SHA256(message, secret_key) → fixed-length hash output
+
+message    = base64(header) + "." + base64(payload)
+secret_key = your JWT_SECRET (e.g. "my_super_secret_123")
+output     = "SflKxwRJSMeKKF2QT4fwpMeJf36P" (always 43 chars for SHA256)
+```
+
+**Key properties of HMAC SHA256:**
+1. Same input + same key → ALWAYS same output (deterministic)
+2. Change even 1 character of input → completely different output
+3. You CANNOT reverse it — can't get the input back from the output
+4. You CANNOT produce the correct output without knowing the secret key
+
+This is why JWT is secure — only your server knows `JWT_SECRET`,
+so only your server can produce a valid signature.
+
+---
+
+## How JWT Verification Works Internally
+
+### AT SIGN TIME (during login):
+
+```javascript
+jwt.sign(
+  { userId: user._id, username: user.username, tokenVersion: user.tokenVersion },
+  JWT_SECRET,
+  { expiresIn: "7d" }
+)
+```
+
+Internally:
+```
+Step 1: Create header JSON   → { "alg": "HS256", "typ": "JWT" }
+Step 2: Create payload JSON  → { userId, username, tokenVersion, iat, exp }
+Step 3: Base64URL encode both:
+        encodedHeader  = "eyJhbGciOiJIUzI1NiJ9"
+        encodedPayload = "eyJ1c2VySWQiOiI2NGYifQ"
+Step 4: Compute signature:
+        sig = HMAC_SHA256(encodedHeader + "." + encodedPayload, JWT_SECRET)
+        encodedSig = Base64URL(sig) = "SflKxwRJSMeKKF2QT4fwpMeJf36P"
+Step 5: Join with dots:
+        token = encodedHeader + "." + encodedPayload + "." + encodedSig
+```
+
+Final token sent to frontend → stored in localStorage.
+
+---
+
+### AT VERIFY TIME (on every protected request):
+
+```javascript
+jwt.verify(token, JWT_SECRET)
+```
+
+Internally:
+```
+Step 1: Split token by "." → [encodedHeader, encodedPayload, encodedSig]
+
+Step 2: Re-compute expected signature:
+        expectedSig = HMAC_SHA256(encodedHeader + "." + encodedPayload, JWT_SECRET)
+
+Step 3: Compare:
+        expectedSig === encodedSig (the one IN the token)?
+        ✅ MATCH    → token is genuine, not tampered
+        ❌ NO MATCH → token was modified → throw JsonWebTokenError
+
+Step 4: Check expiry:
+        decode payload → read exp timestamp
+        exp < current time? → throw TokenExpiredError
+
+Step 5: If all checks pass → decode payload → return { userId, username, tokenVersion, iat, exp }
+```
+
+---
+
+## Why a Fake Token Always Fails
+
+Scenario: hacker tries to forge a token
+
+```
+Hacker has a real token: eyJhbGci.eyJ1c2Vy.REAL_SIGNATURE
+Hacker modifies payload: changes userId to admin's userId
+New payload:             eyJ1c2VyADMIN
+New token attempt:       eyJhbGci.eyJ1c2VyADMIN.REAL_SIGNATURE
+```
+
+At verification:
+```
+Expected sig = HMAC_SHA256("eyJhbGci.eyJ1c2VyADMIN", JWT_SECRET)
+               → completely different hash (one char change = totally different output)
+
+Actual sig in token = REAL_SIGNATURE (computed from original payload)
+
+Expected ≠ Actual → jwt.verify throws → 401 → ACCESS DENIED ✅
+```
+
+The hacker can't compute the correct new signature without knowing `JWT_SECRET`.
+That secret never leaves your server. That's the entire security model.
+
+Analogy: it's like trying to forge a wax seal on a letter.
+Anyone can read the letter (payload is base64 — visible).
+But only the king has the signet ring (JWT_SECRET) that makes the correct seal pattern.
+A forged seal pattern is immediately obvious when compared to what the signet ring would produce.
+
+---
+
+## The Complete Auth Flow
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGISTRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+User fills name, username, password → clicks Register
+    │
+    ▼
+handleRegister() → POST /api/users/register
+    │
+    ▼
+Backend:
+bcrypt.hash(password, 10)   → 60-char hashed password
+new User({name, username, hashedPassword}) → save to MongoDB
+    │
+    ▼
+res.status(201).json({ message: "Welcome to Connectify..." })
+    │
+    ▼
+Frontend: Snackbar shows success message → setFormState(0) → switches to Login view
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOGIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+User fills username, password → clicks Login
+    │
+    ▼
+handleLogin() → POST /api/users/login
+    │
+    ▼
+Backend:
+User.findOne({ username })          → find user in MongoDB
+bcrypt.compare(password, user.password) → verify password
+    │
+    ├── WRONG password → 401 → error shown in UI
+    │
+    └── CORRECT password:
+        user.tokenVersion += 1 → save to DB (invalidates ALL previous tokens)
+        jwt.sign({ userId, username, tokenVersion }, JWT_SECRET, { expiresIn: "7d" })
+        → res.status(200).json({ token })
+    │
+    ▼
+Frontend:
+localStorage.setItem("token", token) → token persisted in browser
+router("/home") → redirect to home page
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACCESSING PROTECTED ROUTE (e.g. /home)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. withAuth HOC runs BEFORE component renders:
+   localStorage.getItem("token") exists?
+   NO  → navigate("/auth") → return null → component never renders
+   YES → component renders normally
+
+2. Component makes API request:
+   GET /api/users/activities
+   Headers: { Authorization: "Bearer eyJ..." }
+
+3. authenticate middleware runs on backend:
+   → extract token from "Bearer <token>" header
+   → jwt.verify(token, JWT_SECRET) → checks signature + expiry
+   → User.findById(decoded.userId) → check tokenVersion matches DB
+   → req.user = decoded → next() → route handler runs and returns data
+
+4. If ANYTHING fails (fake/expired/wrong version):
+   → 401 response
+   → axios interceptor catches it
+   → localStorage.removeItem("token")
+   → window.location.href = "/auth"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ERROR FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Any API error → Axios auto-throws (unlike fetch which requires manual res.ok check)
+    │
+    ▼
+Interceptor checks: is it 401?
+    ├── YES → clear token → hard redirect to /auth
+    └── NO  → Promise.reject(error) → bubbles to handleLogin/handleRegister catch
+                    │
+                    ▼
+              throw err → bubbles to handleAuth catch in Authentication.jsx
+                    │
+                    ▼
+              setError(message) → shown in UI below input fields
+```
+
+---
+
+## withAuth HOC — Frontend Route Protection
+
+**HOC (Higher Order Component)** = a function that takes a component and returns
+a new enhanced component. Like a wrapper that adds extra behavior.
+
+```javascript
+const withAuth = (WrappedComponent) => {   // takes Home component as input
+  const AuthComponent = (props) => {
+    const navigate = useNavigate();
+
+    // synchronous check BEFORE render — prevents flash of protected UI
+    const token = localStorage.getItem("token");
+
+    if(!token){
+      navigate("/auth");
+      return null; // render absolutely nothing while redirect completes
+      // null is needed because navigate() isn't instant —
+      // React still tries to render something in that same moment
+      // return null ensures zero flash of protected UI
+    }
+
+    return <WrappedComponent {...props} />;
+    // {...props} spreads all props through to the original component
+    // so <Home name="Jeff" /> still receives name="Jeff" even after wrapping
+  };
+
+  return AuthComponent; // returns the enhanced protected component
+};
+
+export default withAuth;
+
+// Usage:
+export default withAuth(Home); // Home is now a protected route
+```
+
+**Why synchronous check instead of useEffect:**
+```javascript
+// ❌ useEffect approach — causes flash:
+useEffect(() => {
+  if(!isAuthenticated()) navigate("/auth");
+}, []);
+// Component RENDERS FIRST, then useEffect runs → brief flash of Home UI
+
+// ✅ Synchronous approach — no flash:
+const token = localStorage.getItem("token");
+if(!token) { navigate("/auth"); return null; }
+// Check happens BEFORE render → component never renders if no token
+```
+
+**Limitation:** only checks if token EXISTS — not if it's valid.
+Fake token in localStorage passes this check.
+Real validation happens on backend in `authenticate` middleware.
+Frontend withAuth = UX guard. Backend authenticate = real security.
+
+---
+
+## authenticate Middleware — Backend Route Protection
+
+```javascript
+const authenticate = async (req, res, next) => {
+
+  // "Bearer eyJ..." → split by space → ["Bearer", "eyJ..."] → [1] gets token
+  // ?. = optional chaining — if authorization header missing, returns undefined (no crash)
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if(!token){
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  try {
+    // internally: splits token → recomputes signature → compares → checks expiry
+    // throws JsonWebTokenError if signature invalid
+    // throws TokenExpiredError if exp timestamp is in the past
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // decoded = { userId, username, tokenVersion, iat, exp }
+
+    // DB lookup needed ONLY for tokenVersion check — can't store mutable state in JWT
+    const user = await User.findById(decoded.userId);
+
+    if(!user){
+      return res.status(404).json({ message: "Please login first" });
+    }
+
+    // tokenVersion in DB is always the LATEST (incremented on every login)
+    // tokenVersion in JWT is frozen at sign time
+    // mismatch means a newer login happened → this token is stale → reject
+    if(user.tokenVersion !== decoded.tokenVersion){
+      return res.status(401).json({ message: "Session expired, please login again" });
+    }
+
+    // attach decoded payload to request object (in-memory only, NOT saved to DB)
+    // req is just a plain JS object — you can add any property to it
+    // now any route handler after this middleware can access req.user.userId etc.
+    req.user = decoded;
+    next(); // pass control to the actual route handler
+
+  } catch(err) {
+    // catches: fake token, expired token, tampered token — all handled the same way
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+```
+
+**Protecting a route:**
+```javascript
+router.get("/activities", authenticate, getUserActivities);
+//                        ↑ runs first    ↑ runs only if authenticate calls next()
+```
+
+**What `req.user = decoded` actually does:**
+
+`req` is just a plain JavaScript object Express creates fresh for each incoming request.
+You can attach ANY property to it — `req.pizza = "margherita"` would work too.
+Setting `req.user` is just a convention — it passes user info forward
+to the next function in the middleware chain without needing to hit the DB again.
+It's NOT saving to DB — just adding a property to an in-memory object that lives
+for the duration of that single request.
+
+---
+
+## Token Versioning — Invalidating Old Sessions
+
+**JWT's biggest weakness:** once issued, a token is valid until it expires.
+If someone gets your credentials and logs in, BOTH sessions are valid simultaneously.
+There's no way to "revoke" a JWT mid-life — it's stateless by design.
+
+**Fix: token versioning**
+
+Add `tokenVersion` to User model:
+```javascript
+tokenVersion: { type: Number, default: 0 }
+```
+
+On EVERY login, increment it:
+```javascript
+user.tokenVersion += 1; // DB value moves forward
+await user.save();
+
+const token = jwt.sign(
+  { userId, username, tokenVersion: user.tokenVersion }, // baked into JWT at sign time
+  JWT_SECRET,
+  { expiresIn: "7d" }
+);
+```
+
+In middleware, verify version matches DB:
+```javascript
+if(user.tokenVersion !== decoded.tokenVersion){
+  return res.status(401).json({ message: "Session expired" });
+}
+```
+
+**The exact flow when session is overridden:**
+```
+User A logs in:
+  DB tokenVersion: 0 → incremented to 1 → JWT signed with tokenVersion: 1
+  User A's token payload: { ..., tokenVersion: 1 }
+
+User B logs in with User A's credentials:
+  DB tokenVersion: 1 → incremented to 2 → JWT signed with tokenVersion: 2
+  User B's token payload: { ..., tokenVersion: 2 }
+  (User B now has valid access as User A — credentials were correct)
+
+User A tries to access a protected route (with their OLD token):
+  jwt.verify() → PASSES ✅ (token is still a valid JWT, not expired, not tampered)
+  DB lookup → user.tokenVersion = 2
+  decoded.tokenVersion = 1
+  2 !== 1 → 401 ❌
+  → axios interceptor → clears localStorage → redirect to /auth
+  → User A is now logged out ✅
+
+KEY INSIGHT:
+JWT.sign captures tokenVersion VALUE at login time — frozen in token forever.
+DB tokenVersion keeps incrementing on every new login.
+Old tokens fall behind → get rejected on next request.
+```
+
+---
+
+## Axios Interceptor — Global 401 Handler
+
+**Without interceptor:** every single API call needs its own 401 handling:
+```javascript
+// repeated in EVERY component that makes API calls — nightmare to maintain
+catch(err) {
+  if(err.response?.status === 401){
+    localStorage.removeItem("token");
+    navigate("/auth");
+  }
+}
+```
+
+**With interceptor:** one place handles ALL 401s automatically:
+
+```javascript
+// apiClient.js
+client.interceptors.response.use(
+  (response) => response,    // success — pass through completely unchanged
+  (error) => {               // ANY failed request hits this function first
+    if(error.response?.status === 401){
+      localStorage.removeItem("token"); // wipe stale/invalid/expired token
+      window.location.href = "/auth";   // hard redirect — NOT router("/auth")
+      // window.location.href = FULL PAGE RELOAD → clears all React state
+      // router("/auth") = soft redirect → React state persists (could be stale/corrupted)
+      // Hard redirect is safer for auth reset
+    }
+    return Promise.reject(error);
+    // CRITICAL: re-throw error so catch blocks in handleLogin/handleRegister still fire
+    // Without this line → axios thinks request SUCCEEDED after interceptor runs
+    // Your catch blocks would NEVER fire → errors silently swallowed
+  }
+);
+```
+
+**Scope:** only intercepts requests made with THIS specific `client` instance.
+Other axios instances are completely unaffected.
+
+**Which catch block catches the re-thrown error:**
+```
+interceptor: return Promise.reject(error)
+    │
+    ▼
+handleLogin/handleRegister catch block: throw err (re-throws again)
+    │
+    ▼
+handleAuth catch block in Authentication.jsx
+    │
+    ▼
+setError(message) → shown in UI + setOpen(true) → Snackbar shown
+```
+
+**Why two separate axios instances in this project:**
+```javascript
+// AuthContext.jsx — authClient (NO interceptor)
+const authClient = axios.create({ baseURL: "..." });
+// Login/register are PUBLIC routes — no token involved
+// If 401 interceptor fired here → redirect to /auth while already on /auth → infinite loop
+
+// apiClient.js — client (WITH interceptor)
+const client = axios.create({ baseURL: "..." });
+client.interceptors.response.use(...);
+// Used for protected routes — /activities, /meeting etc.
+// 401 here always means session expired → safe to redirect to /auth
+```
+
+---
+
+## error.response.status vs error.response.data.status
+
+Easy to confuse — completely different things:
+
+```javascript
+error.response.status
+// The HTTP status code set by res.status() on your backend
+// e.g. 401, 404, 500 — always a number
+// This is what you check in the interceptor
+
+error.response.data
+// The JSON body your backend sent in res.json({...})
+// e.g. { message: "Invalid token" }
+
+error.response.data.status
+// Only exists if YOU manually put a "status" field in your JSON body
+// Your backend does NOT do this → this would be undefined
+```
+
+Your backend always does: `res.status(401).json({ message: "..." })`
+
+So:
+```javascript
+error.response.status       → 401        ✅ use this for HTTP status checks
+error.response.data         → { message: "Invalid token" }
+error.response.data.message → "Invalid token"  ✅ use this for error messages
+error.response.data.status  → undefined   ❌ you never set this
+```
+
+---
+
+## JWT vs Refresh Tokens — Where This Project Sits
+
+**This project:** JWT with 7-day expiry + token versioning. Genuine production-quality JWT.
+
+**Refresh token pattern (used by Google, Spotify, Twitter):**
+```
+Access token:  short lived (15 mins) — sent with every API request
+Refresh token: long lived (30 days) — stored in httpOnly cookie
+               used ONLY to silently get a new access token when old one expires
+```
+
+Flow:
+```
+Access token expires → frontend sends refresh token to /auth/refresh
+→ backend verifies refresh token → issues new access token
+→ user stays logged in seamlessly (no re-login prompt)
+```
+
+**Why not implemented here:** adds significant complexity:
+- Two token types to manage
+- `/auth/refresh` endpoint needed
+- httpOnly cookie setup (more secure than localStorage)
+- Token rotation on every refresh
+- Overkill for a portfolio project
+
+**What to say in interviews:**
+> "I implemented JWT with 7-day expiry and token versioning so new logins
+> invalidate all previous sessions for that user. I understand the refresh
+> token pattern for shorter-lived access tokens with silent renewal via
+> httpOnly cookies — I kept it out of scope for this project intentionally
+> since the added complexity wasn't justified, but I know exactly how
+> I'd implement it."
+
+---
+
+## Full Code Reference
+
+### `backend/src/controllers/userController.js` (login only)
+
+```javascript
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// throws on server STARTUP if secret missing — fails loudly, not silently at runtime
+if(!JWT_SECRET){
+  throw new Error("JWT_SECRET is not defined in environment variables");
+}
+
+const login = async(req, res) => {
+  const { username, password } = req.body;
+
+  if(!username || !password){
+    return res.status(400).json({ message: "Please provide valid credentials" });
+  }
+
+  try {
+    const user = await User.findOne({ username });
+    if(!user) return res.status(404).json({ message: "User not found" });
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+    if(isPasswordCorrect){
+      user.tokenVersion += 1;  // invalidates all previous tokens for this user
+      await user.save();
+
+      // sign JWT — tokenVersion baked in at this moment, frozen forever in this token
+      const token = jwt.sign(
+        { userId: user._id, username: user.username, tokenVersion: user.tokenVersion },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      // return only the token — never expose password or sensitive fields
+      return res.status(200).json({ token });
+
+    } else {
+      return res.status(401).json({ message: "Invalid Username or Password" });
+    }
+  } catch(err) {
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+```
+
+---
+
+### `backend/middleware/auth.js`
+
+```javascript
+import jwt from "jsonwebtoken";
+import User from "../src/models/userModels.js";
+import httpStatus from "http-status";
+
+const authenticate = async (req, res, next) => {
+  // "Bearer eyJ..." → split(" ") → ["Bearer", "eyJ..."] → [1] → just the token
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if(!token) return res.status(401).json({ message: "No token provided" });
+
+  try {
+    // verifies signature + checks expiry — throws if either fails
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // DB lookup only needed for tokenVersion check
+    const user = await User.findById(decoded.userId);
+    if(!user) return res.status(404).json({ message: "Please login first" });
+
+    // DB tokenVersion always = latest login; decoded.tokenVersion = frozen at sign time
+    // mismatch = newer login happened elsewhere = this session is stale
+    if(user.tokenVersion !== decoded.tokenVersion){
+      return res.status(401).json({ message: "Session expired, please login again" });
+    }
+
+    req.user = decoded; // attach to request object — available in all downstream handlers
+    next();
+
+  } catch(err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+export default authenticate;
+```
+
+---
+
+### `frontend/src/utils/withAuth.jsx`
+
+```javascript
+import { useNavigate } from "react-router-dom";
+
+const withAuth = (WrappedComponent) => {
+  const AuthComponent = (props) => {
+    const navigate = useNavigate();
+
+    // synchronous check BEFORE render — no useEffect, no flash
+    const token = localStorage.getItem("token");
+
+    if(!token){
+      navigate("/auth");
+      return null; // render nothing while redirect completes — prevents any flash
+    }
+
+    return <WrappedComponent {...props} />; // {...props} passes all props through unchanged
+  };
+
+  return AuthComponent;
+};
+
+export default withAuth;
+```
+
+---
+
+### `frontend/src/utils/apiClient.js`
+
+```javascript
+import axios from 'axios';
+
+// Axios auto-throws on 4xx/5xx HTTP errors unlike native fetch (requires manual res.ok check)
+// Error response pre-structured as err.response.data — no manual parsing needed
+const client = axios.create({
+  baseURL: "http://localhost:8000/api/users"
+});
+
+// Intercepts every response globally before it reaches individual catch blocks
+client.interceptors.response.use(
+  (response) => response,                    // success — pass through untouched
+  (error) => {
+    if(error.response?.status === 401){       // session expired or overridden
+      localStorage.removeItem("token");       // clear stale token from browser
+      window.location.href = "/auth";         // hard redirect — full page reload resets all React state
+    }
+    return Promise.reject(error);             // re-throw — other errors bubble to individual catch blocks
+  }
+);
+
+export default client;
+```
 
 ---
