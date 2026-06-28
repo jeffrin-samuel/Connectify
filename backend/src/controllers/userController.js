@@ -1,7 +1,15 @@
 import User from "../models/userModels.js";
 import httpStatus from "http-status";
 import bcrypt from "bcrypt";
-import crypto from "node:crypto";
+import jwt from "jsonwebtoken";
+import Meeting from "../models/meetingModel.js";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if(!JWT_SECRET){
+  throw new Error("JWT_SECRET is not defined in environment variables");
+}
+
 
 const login = async(req, res) => {
 
@@ -21,11 +29,16 @@ const login = async(req, res) => {
         let isPasswordCorrect = await bcrypt.compare(password, user.password);
         
         if(isPasswordCorrect){
-            // Generate a cryptographically secure random session token
-            let token = crypto.randomBytes(20).toString("hex"); 
 
-            user.token = token;
+            user.tokenVersion += 1;  // invalidates all previous tokens for this user
             await user.save();
+
+            // sign a JWT containing userId and username — verifiable without DB lookup
+            const token = jwt.sign(
+                { userId: user._id, username: user.username, tokenVersion: user.tokenVersion },
+                JWT_SECRET,
+                { expiresIn: "7d" }
+            );
 
             // Return only the token to client — avoids exposing sensitive user data in localStorage
             return res.status(httpStatus.OK).json({ token : token });            
@@ -68,4 +81,37 @@ const register = async(req, res) => {
     }
 }
 
-export {login, register};
+// GET /api/users/activities
+// protected by authenticate middleware — req.user already set
+const getUserHistory = async (req, res) => {
+  try {
+    const meetings = await Meeting.find({ user_id: req.user.userId });
+    res.status(httpStatus.OK).json(meetings);
+  } catch (err) {
+    console.error("Cannot find meeting history", err);
+    res.status(500).json({ message: "Error fetching user meeting history" });
+  }
+};
+
+// POST /api/users/activities
+// protected by authenticate middleware — req.user already set
+const addToUserHistory = async (req, res) => {
+  const { meeting_code } = req.body; // from frontend request body
+
+  try {
+    
+    const newMeeting = new Meeting({
+      user_id: req.user.userId,  // from JWT payload via middleware
+      meetingCode: meeting_code,
+    });
+
+    await newMeeting.save();
+    res.status(httpStatus.CREATED).json({ message: "Added meeting to history" });
+
+  } catch (err) {
+    console.error("Failed to save user history", err);
+    res.status(500).json({ message: "Error saving user history" });
+  }
+};
+
+export {login, register, getUserHistory, addToUserHistory};

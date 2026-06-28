@@ -16,6 +16,8 @@ export default function connectToSocket(server) {
 
     io.on("connection", (socket)=>{
 
+        console.log("Something Connected");  //for testing
+
         socket.on("join-call", (path) => {   //In which path (the url) is the participant trying to join eg localhost/2836
 
             if(connections[path] === undefined){   
@@ -26,7 +28,7 @@ export default function connectToSocket(server) {
             timeOnline[socket.id] = new Date();  
 
             for(let i = 0; i < connections[path].length; i++){
-                io.to(connections[path][i]).emit("user-joined", socket.id);
+                io.to(connections[path][i]).emit("user-joined", socket.id, connections[path]); // send who joined + the full list of everyone in the room
             }
 
             if(messages[path] !== undefined){     
@@ -91,6 +93,7 @@ export default function connectToSocket(server) {
 
                         if(connections[roomKey].length == 0){   //If no one in the room
                             delete connections[roomKey];
+                            delete messages[roomKey]; // clear chat history when room empties
                         }
                     }
                 }
