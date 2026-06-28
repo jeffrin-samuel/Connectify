@@ -4,6 +4,8 @@ import LandingPage from './pages/LandingPage'
 import Authentication from './pages/authentication'
 import { AuthProvider } from './contexts/AuthContext'
 import VideoMeet from './pages/VideoMeet'
+import Home from './pages/Home'
+import { MeetingProvider } from './contexts/MeetingContext'
 
 function App() {
   
@@ -15,13 +17,18 @@ function App() {
 
         <AuthProvider>
 
-          <Routes>
+          <MeetingProvider>
 
-            <Route path = '/' element = {< LandingPage />} />
-            <Route path='/auth' element = {< Authentication />} />
-            <Route path = '/:url' element = {<VideoMeet />} />
+            <Routes>
 
-          </Routes>
+              <Route path = '/' element = {< LandingPage />} />
+              <Route path='/auth' element = {< Authentication />} />
+              <Route path='/home' element = {< Home />} />
+              <Route path = '/:url' element = {<VideoMeet />} />
+
+            </Routes>
+
+          </MeetingProvider>
 
         </AuthProvider>
         

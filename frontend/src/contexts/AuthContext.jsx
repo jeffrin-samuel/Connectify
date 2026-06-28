@@ -7,9 +7,10 @@ export const AuthContext = createContext({});
 
 // Axios auto-throws on 4xx/5xx HTTP errors unlike native fetch (which requires manual res.ok check)
 // Error response pre-structured as err.response.data — no manual parsing needed
-const client = axios.create({
+const authClient = axios.create({
     baseURL: "http://localhost:8000/api/users"
 })
+
 
 export const AuthProvider = ( {children} ) => {
 
@@ -21,7 +22,7 @@ export const AuthProvider = ( {children} ) => {
 
     const handleRegister = async(name, username, password) => {
         try{
-            let request = await client.post("/register", {
+            let request = await authClient.post("/register", {
                 name: name,
                 username: username,
                 password: password,
@@ -40,14 +41,14 @@ export const AuthProvider = ( {children} ) => {
     const handleLogin = async(username, password) => {
         try{
             
-            let request = await client.post("/login", {
+            let request = await authClient.post("/login", {
                 username: username,
                 password: password,
             });
 
             if(request.status === httpStatus.OK){
                 localStorage.setItem("token", request.data.token);
-                router("/");   //Redirect user to the home page upon successful login
+                router("/home");   //Redirect user to the home page upon successful login
             }
 
         } catch(err) {

@@ -73,3 +73,49 @@
   height: 70vh;
   width: auto;
 }
+
+.navItem {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.navItem:hover {
+  background-color: #1e1e2e; /* subtle dark highlight on hover */
+}
+
+.meetContainer {
+  display: flex;
+  padding-inline: 20px;
+  height: 80vh;
+  gap: 10vw;
+  justify-content: center;
+  background-color: 141422;
+}
+
+.leftPanel {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  color: #e8e8f0;
+}
+
+.leftPanel h1 {
+  color: #e8e8f0;
+  font-size: 2.3rem;
+}
+
+.rightPanel {
+  display: flex;
+  align-items: center;
+}
+
+.rightPanel > img {
+  width: 30vw;
+  height: auto;
+  border-radius: 20px;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 20px rgba(124, 92, 191, 0.3)); /* subtle purple glow */
+}
