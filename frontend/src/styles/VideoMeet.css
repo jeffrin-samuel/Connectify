@@ -78,6 +78,7 @@
     width: auto;
     left: 2vh;
     border-radius: 20px;
+    z-index: 5;
 }
 
 .buttonContainers{
@@ -85,6 +86,7 @@
     width: 100vw;
     bottom: 2vh;
     text-align: center;
+    z-index: 1;
 }
 
 .buttonContainers svg{
@@ -131,6 +133,7 @@
     width: 22vw;
     bottom: 10vh;
     padding-inline: 12px;
+    z-index: 1;
 }
 
 .chatContainer{
@@ -149,7 +152,7 @@
 }
 
 .chatDisplay{
-    height: 73vh;           /* takes most of the chat container height */
+    height: 71vh;           /* takes most of the chat container height */
     overflow-y: auto;       /* scrollable when messages overflow */
 }
 
@@ -157,4 +160,135 @@
    margin-top: 11px;
 }
 
+/*Username Video Tile Label 
+  Shown at bottom-right of each video tile
+  Semi-transparent dark background so it's readable over any video content   */
 
+.videoLabel {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: rgba(50, 50, 50, 0.7);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Self video label — positioned same as the video itself */
+.selfVideoLabel {
+    position: absolute;
+    bottom: 11vh;  /* same bottom as meetUserSelfVideo */
+    left: 2.5vh;    /* same right as meetUserSelfVideo */
+    background-color: rgba(50, 50, 50, 0.7);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 5px; /* rounded only at bottom */
+    font-size: 0.9rem;
+    font-weight: 500;
+    z-index: 5;
+}
+
+/* Info Icon Button */
+
+.infoPopup {
+  position: absolute;
+  bottom: 8vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1e2e;
+  border: 0.5px solid #3a3a5a;
+  border-radius: 12px;
+  padding: 14px 18px;
+  width: 340px;
+  z-index: 10;
+}
+
+.infoPopup p {
+  margin: 0 0 2px;
+  font-size: 13px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.infoPopupRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.infoPopupRow input {
+  flex: 1;
+  background: #141422;
+  border: 0.5px solid #3a3a5a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #e8e8f0;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.infoPopupRow button {
+  background: #7c5cbf;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.infoPopupRow button:hover {
+  background: #6a4daa;
+}
+
+
+/* ═══════════════════════════════════════════
+   MOBILE — max-width: 600px
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+
+  .conferenceView {
+    grid-template-columns: 1fr;    /* single column on mobile */
+    padding-bottom: 70px;
+    gap: 6px;
+  }
+
+  .conferenceView video {
+    max-height: 35vh;              /* shorter tiles on mobile */
+  }
+
+  .meetUserSelfVideo {
+    width: 100px;                  /* smaller floating tile on mobile */
+    bottom: 78px;
+    left: 8px;
+    border-radius: 10px;
+  }
+
+  .buttonContainers {
+    height: 64px;
+    gap: 2px;
+  }
+
+  .buttonContainers svg {
+    font-size: 1.6rem;             /* smaller icons on mobile */
+  }
+
+  .chatRoom {
+    width: 100vw;                  /* full screen overlay on mobile */
+    border-radius: 12px 12px 0 0; /* rounded top only */
+    bottom: 64px;
+    height: calc(100vh - 64px);
+  }
+
+  .infoPopup {
+    width: 90vw;                   /* wider popup on mobile */
+    bottom: 72px;
+  }
+}

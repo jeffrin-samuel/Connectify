@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import withAuth from '../utils/withAuth';
 import DuoIcon from '@mui/icons-material/Duo';
+import AddIcon from '@mui/icons-material/Add';
 import "../App.css"
 import { Button, TextField }  from "@mui/material";
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -32,6 +33,8 @@ function Home() {
 
   let handleJoinVideoCall = async () => {
 
+    if(!meetingCode) return;
+
     try {
       await addToUserHistory(meetingCode);
     } catch(err) {
@@ -39,7 +42,19 @@ function Home() {
       // history save failing shouldn't block joining the meeting
     }
     
-    navigate(`/${meetingCode}`); // always navigate, regardless of history save result
+    navigate(`/meet/${meetingCode}`); // always navigate, regardless of history save result
+  }
+
+  let handleCreateMeeting = () => {
+
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let meetingCode = "";
+
+    for(let i = 0; i < 6; i++){
+      meetingCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    navigate(`/meet/${meetingCode}`);
   }
   
   return (
@@ -88,10 +103,25 @@ function Home() {
 
               <div style={{display: "flex", gap: "10px", marginTop: "7px"}}>
 
-                <TextField onChange={e => setMeetingCode(e.target.value)} id="outlined-basic" label="Meeting Code" variant="outlined" />
+                <TextField onChange={e => setMeetingCode(e.target.value)} id="outlined-basic" label="Meeting Code" variant="outlined" required />
                 <Button onClick={ handleJoinVideoCall } variant='contained'> Join </Button>
-
               </div>
+
+              {/* or divider + create meeting button */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+                <div style={{ flex: 1, height: "1px", backgroundColor: "#3a3a5a" }} />
+                <span style={{ color: "#9999bb", fontSize: "13px" }}>or</span>
+                <div style={{ flex: 1, height: "1px", backgroundColor: "#3a3a5a" }} />
+              </div>
+
+              <Button 
+                onClick={handleCreateMeeting}  // plug in your existing function here 
+                variant="outlined"              // outlined not contained — secondary action 
+                startIcon={<AddIcon />}
+                style={{ marginTop: "16px", borderColor: "#7c5cbf", color: "#9c7de0", width: "100%" }}
+              >
+                Create Meeting
+              </Button>
             </div>
           </div>
 

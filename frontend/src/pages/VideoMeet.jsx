@@ -14,6 +14,8 @@ import ChatIcon from '@mui/icons-material/Chat'
 import "../styles/VideoMeet.css";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+
 
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -81,22 +83,30 @@ async function ensureIceServers() {
 async function updateTracksOnConnection(connection, stream) {
   const senders = connection.getSenders();
 
-  // replace/add tracks that exist in the new stream
   const promises = stream.getTracks().map(track => {
-    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+    // find sender matching this track kind — check both active and nulled senders
+    const sender = senders.find(s => {
+      if(s.track) return s.track.kind === track.kind; // active sender
+      // for nulled senders, we can't know the kind — try replaceTrack on all nulled ones
+      return false;
+    });
+
     if(sender){
       console.log(`[REPLACE] Replacing ${track.kind} track`);
       return sender.replaceTrack(track);
     } else {
+      // no active sender found — check if there's a nulled sender to reuse
+      const nulledSender = senders.find(s => s.track === null);
+      if(nulledSender){
+        console.log(`[RESTORE] Restoring nulled sender with ${track.kind} track`);
+        return nulledSender.replaceTrack(track);
+      }
       console.log(`[ADD] Adding new ${track.kind} track`);
       connection.addTrack(track, stream);
       return Promise.resolve();
     }
   });
 
-  // silence senders whose track kind is NOT in the new stream
-  // e.g. audio sender stays alive when switching to video-only stream —
-  // replaceTrack(null) tells WebRTC to send silence instead of dead track
   senders.forEach(sender => {
     if(!sender.track) return;
     const stillNeeded = stream.getTracks().some(t => t.kind === sender.track.kind);
@@ -132,6 +142,8 @@ export default function VideoMeet() {
   const [video, setVideo] = useState(false);
   const [audio, setAudio] = useState(false);
   const [screen, setScreen] = useState();
+  const [showInfo, setShowInfo] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // ---------- Chat ----------
 
@@ -415,7 +427,7 @@ export default function VideoMeet() {
       // assign socket id before emitting join-call — user-joined fires back almost instantly,
       // and the self-skip guard (socketListId === socketIdRef.current) depends on this being set
       socketIdRef.current = socketRef.current.id;
-      socketRef.current.emit("join-call", window.location.href);
+      socketRef.current.emit("join-call", window.location.href, username);
 
       socketRef.current.on("chat-message", addMessage);
 
@@ -423,7 +435,7 @@ export default function VideoMeet() {
         setVideos((videos) => videos.filter((video) => video.socketId !== id));
       })
 
-      socketRef.current.on("user-joined", (userJoinedId, clients) => {
+      socketRef.current.on("user-joined", (userJoinedId, clients, usernameMap) => {
 
         console.log("[USER-JOINED] userJoinedId:", userJoinedId);
         console.log("[USER-JOINED] clients:", clients);
@@ -505,6 +517,7 @@ export default function VideoMeet() {
               let newVideo = {
                 socketId: socketListId,
                 stream: stream,
+                username: usernameMap[socketListId] || "Guest", // correct username per socket
                 autoPlay: true,
                 playsinline: true
               };
@@ -578,28 +591,27 @@ export default function VideoMeet() {
   };
 
 
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if(token){
+    try {
+      const decoded = JSON.parse(atob(token.split(".")[1])); // decode JWT payload
+      setUsername(decoded.username); // pre-fill with real username
+    } catch(err) {
+      // token malformed/invalid — leave empty, user types manually
+      // real validation happens on backend via authenticate middleware
+    }
+  }
+}, []);
+
+
   let connect = () => {
+
+    if(!username) return;
+
     setAskForUsername(false);
     getMedia();
   };
-
-  // --------------------------------------  Socket / WebRTC (TODO) --------------------------------------  
-  // connectToSocketServer, gotMessageFromServer, getUserMediaSuccess full
-  // implementation, user-joined / user-left handlers, ICE candidate exchange,
-  // offer/answer flow — all coming next
-  //
-  // Socket connection pattern (io from socket.io-client, NOT socketManager.js):
-  // socketRef.current = io(SERVER_URL);
-  // socketRef.current.on("connect", () => {
-  //   socketIdRef.current = socketRef.current.id;
-  //   socketRef.current.emit("join-call", window.location.href);
-  // });
-
-  // ------------------------------- Chat (TODO) -------------------------------------- 
-  // addMessage, sendMessage, handleMessage — coming next
-
-  // -------------------  Screen share (TODO) --------------------------------------------------- 
-  // getDisplayMedia, getDisplayMediaSuccess — coming next
 
   // ------------------- UI handlers ------------------------------------------------------
   
@@ -802,6 +814,15 @@ export default function VideoMeet() {
   // --------------------- Call-end ------------------------------------------------------
 
   let handleEndCall = () => {
+
+    // stop screen share if active before ending call
+    if(screen){
+      try {
+        window.localStream.getTracks().forEach(track => track.stop());
+      } catch(err) {
+        console.error("Error stopping screen share on end call:", err);
+      }
+    }
     
     try{
       let tracks = localVideoRef.current.srcObject.getTracks();
@@ -810,26 +831,54 @@ export default function VideoMeet() {
       console.error("Error stopping tracks after call-end ", err);
     }
 
-    const token = localStorage.getItem("token");
+    // close all peer connections cleanly
+    Object.keys(connections).forEach(id => {
+      connections[id].close();
+      delete connections[id];
+    });
 
+    const token = localStorage.getItem("token");
+    
+    //Hard Refresh
     if(token){
-      routeTo("/home");  // logged in user → home
+      window.location.href = "/home";  // logged in user → home
     } else {
-      routeTo("/");      // guest user → landing page
+      window.location.href = "/"   // guest user → landing page
     }
 
   }
+
+  // --------------------- Info Button (Meeting Link) -------------------------------------
+
+  useEffect(() => {
+  if (showInfo) {
+    const timer = setTimeout(() => {
+      setShowInfo(false);
+    }, 5000);
+    return () => clearTimeout(timer);  // cleanup if user closes it manually before 5s
+  }
+}, [showInfo]);
+
+
+const handleCopy = () => {
+  navigator.clipboard.writeText(window.location.href);
+  setCopied(true);
+  setTimeout(() => setCopied(false), 2000);
+}
+
+
 
 
   // --------------------- Render ------------------------------------------------------
 
   return (
 
-    <ThemeProvider theme={darkTheme}>
-    <CssBaseline />
-
     <div style={{ margin: 0, padding: 0, height: "100vh", width: "100vw", overflow: "hidden" }}>
       {askForUsername === true ? (
+      
+      //Theme Stylings Applied to Meeting Lobby Only   
+      <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
 
         <div className='lobbyContainer'>
           
@@ -842,6 +891,7 @@ export default function VideoMeet() {
               value={username}
               onChange={e => setUsername(e.target.value)}
               variant="outlined"
+              required
             />
             <Button variant="contained" onClick={connect}>
               Connect
@@ -849,9 +899,11 @@ export default function VideoMeet() {
           </div>
 
           <div className='lobbySelfVideoPreview'>
-            <video ref={localVideoRef} autoPlay muted />
+            <video ref={localVideoRef} autoPlay muted playsInline/>
           </div>
         </div>
+
+      </ThemeProvider>
 
       ) : (
 
@@ -880,13 +932,21 @@ export default function VideoMeet() {
               </div>
 
               <div className="chatArea">
-                <TextField value={message} onChange={e => setMessage(e.target.value)} id="outlined-basic" label="Enter Message" variant="outlined" />
+                <TextField 
+                  value={message} 
+                  onChange={e => setMessage(e.target.value)} 
+                  id="outlined-basic" 
+                  label="Enter Message" 
+                  variant="outlined"
+                  multiline        // enables multi-line input
+                  maxRows={2}      // max 2 lines before scrollbar appears
+                />
                 <Button variant='contained' onClick={sendMessage}> Send </Button>
               </div>
             </div>
 
           </div> 
-          : <></> 
+          : null 
         }
 
           <div className="buttonContainers">
@@ -909,20 +969,39 @@ export default function VideoMeet() {
               </IconButton> : <></>
             }
 
+            {showInfo && (
+              <div className="infoPopup">
+                <p>Share this link to invite others</p>
+
+                <div className="infoPopupRow">
+                  <input readOnly value={window.location.href} />
+                  <button onClick={handleCopy}>
+                     {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <IconButton onClick={() => setShowInfo(!showInfo)} style={{color: showInfo ? "#9c7de0" : "white"}}>
+              <InfoOutlinedIcon />
+            </IconButton>
+
             <Badge badgeContent={newMessages} max={999} color='secondary'>
-              <IconButton onClick={() => setShowModal(!showModal)} style={{color: "white"}}>
+              <IconButton onClick={() => setShowModal(!showModal)} style={{color: showModal ? "#9c7de0" : "white"}}>
                 <ChatIcon  className='chatIconSvg'/> 
               </IconButton>
             </Badge>
 
           </div>
-
-          <video className='meetUserSelfVideo' ref = {localVideoRef} autoPlay muted> </video>
+          
+          {/* Self Video Preview */}
+          <video className='meetUserSelfVideo' ref={localVideoRef} autoPlay muted playsInline/>
+          <div className='selfVideoLabel'>{username} (You)</div>
           
           <div className='conferenceView'>
             {videos.map((video) => (
 
-              <div key={video.socketId}>
+              <div key={video.socketId} style={{ position: "relative" }} >
 
                 <video 
 
@@ -937,8 +1016,13 @@ export default function VideoMeet() {
                   }}
 
                   autoPlay
+                  playsInline 
                 >
                 </video>
+
+                <div className="videoLabel">
+                  {video.username || "Guest"}
+                </div>
               
               </div>
               
@@ -949,6 +1033,6 @@ export default function VideoMeet() {
 
       )}
     </div>
-  </ThemeProvider>
+
   );
 }

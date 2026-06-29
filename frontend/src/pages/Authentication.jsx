@@ -11,6 +11,12 @@ import Typography from '@mui/material/Typography';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Snackbar } from '@mui/material';
 import { AuthContext } from '../contexts/AuthContext';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useNavigate } from 'react-router-dom';
 
 // Dark theme matching Connectify's black & purple aesthetic
 const darkTheme = createTheme({
@@ -37,6 +43,7 @@ export default function Authentication() {
 
     const [username, setUsername] = React.useState('');   
     const [password, setPassword] = React.useState('');   
+    const [showPassword, setShowPassword] = React.useState(false);
     const [name, setName] = React.useState('');           
     const [error, setError] = React.useState('');
     const [message, setMessage] = React.useState('');
@@ -45,8 +52,23 @@ export default function Authentication() {
 
     const {handleRegister, handleLogin} = React.useContext(AuthContext);
 
+    let navigate = useNavigate();
+
     let handleAuth = async () => {
         try {
+
+            // manual validation — required attribute doesn't work with onClick handlers
+            if(formState === 0 && (!username || !password)){
+                setError("Please enter username and password");
+                setOpen(true);
+                return;
+            }
+            if(formState === 1 && (!name || !username || !password)){
+                setError("Please fill in all fields");
+                setOpen(true);
+                return;
+            }
+            
             if (formState === 0) {
                 setError('');        // clear stale errors before retrying login
                 setUsername('');     // defensive reset — clears sensitive input before redirect to home pg
@@ -160,8 +182,26 @@ export default function Authentication() {
                                 fullWidth
                                 label="Password"
                                 value={password}
-                                type="password"
+                                type={showPassword ? "text" : "password"} // toggles between visible and hidden
                                 onChange={(e) => setPassword(e.target.value)}
+                                slotProps={{
+                                    input: {                          // target the input slot first
+                                        endAdornment: (               // place something at the END of the input
+                                            <InputAdornment position="end">   {/* tells MUI: this goes at the end */}
+                                                <IconButton
+                                                    onClick={() => setShowPassword(!showPassword)}  // toggle state
+                                                    style={{ color: "#9c7de0" }}
+                                                    edge="end"        // removes extra padding at the edge
+                                                >
+                                                    {showPassword
+                                                        ? <VisibilityOffIcon />   // password visible → show closed eye
+                                                        : <VisibilityIcon />       // password hidden → show open eye
+                                                    }
+                                                </IconButton>
+                                            </InputAdornment>
+                                        )
+                                    }
+                                }}
                             />
 
                             {/* Error message */}
@@ -204,6 +244,24 @@ export default function Authentication() {
                                 </Typography>
                             )}
                         </Box>
+
+                        {/* Back button — navigates to landing page */}
+                        <Button
+                            startIcon={<ArrowBackIcon />}
+                            onClick={() => navigate("/")}
+                            sx={{
+                                color: '#9999bb',
+                                textTransform: 'none',
+                                fontSize: '0.9rem',
+                                mt: 1,
+                                '&:hover': {
+                                    color: '#cbbbee',
+                                    backgroundColor: 'transparent'
+                                }
+                            }}
+                            disableRipple >
+                            Back
+                        </Button>
                     </Box>
                 </Grid>
 

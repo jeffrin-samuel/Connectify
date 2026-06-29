@@ -18,7 +18,9 @@ export default function connectToSocket(server) {
 
         console.log("Something Connected");  //for testing
 
-        socket.on("join-call", (path) => {   //In which path (the url) is the participant trying to join eg localhost/2836
+        socket.on("join-call", (path, username) => {   //In which path (the url) is the participant trying to join eg localhost/2836
+            
+            socket.data.username = username; // store on socket
 
             if(connections[path] === undefined){   
                 connections[path] = [];
@@ -28,7 +30,19 @@ export default function connectToSocket(server) {
             timeOnline[socket.id] = new Date();  
 
             for(let i = 0; i < connections[path].length; i++){
-                io.to(connections[path][i]).emit("user-joined", socket.id, connections[path]); // send who joined + the full list of everyone in the room
+
+                io.to(connections[path][i]).emit(
+                    "user-joined", 
+                    socket.id,        // who just joined
+                    connections[path], // all socket ids in room
+                    
+                    // map of socketId → username for everyone in room
+                    connections[path].reduce((acc, id) => {
+                        const s = io.sockets.sockets.get(id);
+                        acc[id] = s?.data?.username || "Guest";
+                        return acc;
+                    }, {})
+                );
             }
 
             if(messages[path] !== undefined){     
@@ -73,7 +87,7 @@ export default function connectToSocket(server) {
         });
 
         socket.on("disconnect", () => {
-            let diffTime = Math.abs(timeOnline[socket.id] - new Date());
+            console.log(`${socket.data.username} disconnected`);
             
             let roomKey;
 

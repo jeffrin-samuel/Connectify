@@ -10,15 +10,15 @@ export default function LandingPage() {
 
   let randomMeetingRoom = () => {
 
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let meetingCode = "";
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let meetingCode = "";
 
-  for(let i = 0; i < 6; i++){
-    meetingCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    for(let i = 0; i < 6; i++){
+      meetingCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    navigate(`/meet/${meetingCode}`);
   }
-
-  navigate(`/${meetingCode}`);
-}
 
 
 
