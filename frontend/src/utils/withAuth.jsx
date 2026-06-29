@@ -1,15 +1,12 @@
-import { useNavigate } from "react-router-dom"
-
 const withAuth = (WrappedComponent) => {
     
     const AuthComponent = (props) => {
-        const navigate = useNavigate();
 
         // synchronous check BEFORE render — prevents flash of protected UI
         const token = localStorage.getItem("token");
         
         if(!token){
-            navigate("/auth");
+            window.location.href = "/auth"; // hard redirect — avoids React render-phase side effect limitation
             return null; // render nothing while redirecting
         }
 

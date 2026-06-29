@@ -5,7 +5,7 @@ export const MeetingContext = createContext({});
 
 export const MeetingProvider = ({ children }) => {
 
-  const getHistory = async () => {
+  const getUserHistory = async () => {
     try {
       const response = await apiClient.get("/activities");
       return response.data;
@@ -24,7 +24,7 @@ export const MeetingProvider = ({ children }) => {
     }
   };
 
-  const data = { getHistory, addToUserHistory };
+  const data = { getUserHistory, addToUserHistory };
 
   return (
     <MeetingContext.Provider value={data}>

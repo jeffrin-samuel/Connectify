@@ -12,9 +12,21 @@ import ScreenShareIcon from '@mui/icons-material/ScreenShare';
 import StopScreenShareIcon from '@mui/icons-material/StopScreenShare'
 import ChatIcon from '@mui/icons-material/Chat'
 import "../styles/VideoMeet.css";
-
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+
+// Dark theme matching Connectify's black & purple aesthetic
+const darkTheme = createTheme({
+    palette: {
+        mode: 'dark',
+        primary: { main: '#7c5cbf' },
+        secondary: { main: '#9c7de0' },
+        background: { paper: '#1e1e2e', default: '#141422' },
+        text: { primary: '#e8e8f0', secondary: '#9999bb' },
+    },
+});
 
 // All active WebRTC peer connections, keyed by the other user's socket id.
 // Lives outside component so it survives re-renders without triggering them.
@@ -798,7 +810,13 @@ export default function VideoMeet() {
       console.error("Error stopping tracks after call-end ", err);
     }
 
-    routeTo("/home");
+    const token = localStorage.getItem("token");
+
+    if(token){
+      routeTo("/home");  // logged in user → home
+    } else {
+      routeTo("/");      // guest user → landing page
+    }
 
   }
 
@@ -806,23 +824,31 @@ export default function VideoMeet() {
   // --------------------- Render ------------------------------------------------------
 
   return (
-    <div>
+
+    <ThemeProvider theme={darkTheme}>
+    <CssBaseline />
+
+    <div style={{ margin: 0, padding: 0, height: "100vh", width: "100vw", overflow: "hidden" }}>
       {askForUsername === true ? (
 
-        <div>
-          <h2>Enter into Lobby</h2>
-          <TextField
-            id="outlined-basic"
-            label="Username"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            variant="outlined"
-          />
-          <Button variant="contained" onClick={connect}>
-            Connect
-          </Button>
+        <div className='lobbyContainer'>
+          
+          <h2>Welcome to the Lobby</h2>
 
-          <div>
+          <div className="lobbyTextField">
+            <TextField
+              id="outlined-basic"
+              label="Username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              variant="outlined"
+            />
+            <Button variant="contained" onClick={connect}>
+              Connect
+            </Button>
+          </div>
+
+          <div className='lobbySelfVideoPreview'>
             <video ref={localVideoRef} autoPlay muted />
           </div>
         </div>
@@ -923,5 +949,6 @@ export default function VideoMeet() {
 
       )}
     </div>
+  </ThemeProvider>
   );
 }

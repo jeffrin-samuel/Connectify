@@ -1,3 +1,5 @@
+/* Landing Page */
+
 .landingPageContainer{
   width: 100vw;
   height: 100vh;
@@ -73,6 +75,8 @@
   height: 70vh;
   width: auto;
 }
+
+/* Home Page */
 
 .navItem {
   display: flex;

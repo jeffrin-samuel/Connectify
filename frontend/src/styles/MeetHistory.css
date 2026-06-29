@@ -1,0 +1,53 @@
+.historyContainer {
+  min-height: 100vh;
+  background-color: #141422;
+  padding: 0;
+}
+
+.historyNavBar {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding-inline: 15px;
+  background-color: #303061;
+  border-bottom: 1px solid #1e1e2e;
+  gap: 12px;
+}
+
+.historyNavBar h2 {
+  color: #e8e8f0;
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.historyContent {
+  padding: 2rem 3rem;
+  max-height: calc(100vh - 60px); /* full height minus navbar */
+  overflow-y: auto;               /* scroll when meetings overflow */
+}
+
+.historyTitle {
+  color: #e8e8f0;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+.meetingCard {
+  margin-bottom: 1rem;
+  background-color: #1e1e2e !important;
+  border: 1px solid #2e2e4e !important;
+  border-radius: 12px !important;
+  transition: border-color 0.2s;
+}
+
+.meetingCard:hover {
+  border-color: #7c5cbf !important; /* purple border highlight on hover */
+}
+
+.noMeetings {
+  color: #9999bb;
+  font-size: 1.1rem;
+  text-align: center;
+  margin-top: 4rem;
+}

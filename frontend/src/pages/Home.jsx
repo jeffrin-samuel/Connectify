@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import withAuth from '../utils/withAuth';
 import DuoIcon from '@mui/icons-material/Duo';
@@ -23,6 +23,7 @@ const darkTheme = createTheme({
 
 
 function Home() {
+  
   let navigate = useNavigate();
 
   const [meetingCode, setMeetingCode] = useState("");
@@ -46,7 +47,7 @@ function Home() {
       <CssBaseline />
     
       <>
-
+   
         <div className="navBar" style={{ height: "60px", display: "flex", justifyContent: "space-between", paddingInline: "15px", backgroundColor: "#303061", borderBottom: "1px solid #1e1e2e" }}>
           
           {/* Navbar brand — Connectify logo + text   */}
@@ -59,7 +60,7 @@ function Home() {
           <div style={{ display: "flex", alignItems: "center", marginRight: "2rem", gap: "20px" }}>
             
             {/* History button */}
-            <div className="navItem" style={{color: "#e8e8f0", gap: "4px" }}>
+            <div onClick={() => navigate("/history")} className="navItem" style={{color: "#e8e8f0", gap: "4px" }}>
               <RestoreIcon style={{ color: "#9c7de0" }} />
               <p style={{ fontWeight: "bold", fontSize: "large", margin: 0 }}>History</p>
             </div>

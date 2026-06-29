@@ -1,6 +1,27 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function LandingPage() {
+
+  let navigate = useNavigate();
+
+  let redirectToAuthPage = () => {
+    navigate("/auth");
+  }
+
+  let randomMeetingRoom = () => {
+
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let meetingCode = "";
+
+  for(let i = 0; i < 6; i++){
+    meetingCode += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+
+  navigate(`/${meetingCode}`);
+}
+
+
+
   return (
     <div className="landingPageContainer">
 
@@ -11,11 +32,14 @@ export default function LandingPage() {
         </div>
 
         <div className="navList">
-          <p>Join as Guest</p>
-          <p>Register</p>
-          <div role="button">
+          <p onClick={randomMeetingRoom}>Join as Guest</p>
+
+          <p onClick={redirectToAuthPage}>Register</p>
+
+          <div onClick={redirectToAuthPage} role="button">
             <p>Login</p>
           </div>
+
         </div>
 
       </nav>

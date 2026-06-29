@@ -1,7 +1,73 @@
+/* Lobby View */
+
+.lobbyContainer {
+  min-height: 100vh;  /* min-height not height — allows growth if content exceeds viewport (no overflow clipping) */
+  width: 100vw;   /* full viewport width */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #20202b; 
+  gap: 1.5rem;  /* vertical gap between children since flex-direction is column */
+  padding: 2rem;  
+  box-sizing: border-box;  /* padding included in width/height calculation — prevents unintended overflow */
+}
+
+.lobbyContainer h2 {
+  color: #e8e8f0;
+  font-size: 2rem;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.lobbyTextField {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;  /* fill parent container width fully */
+  max-width: 500px;  /* entire row (TextField + Button) capped at 500px */
+}
+
+.lobbyTextField .MuiTextField-root {
+  flex: 1;  /* TextField takes ALL remaining space after Button takes its fixed width */
+}
+
+.lobbySelfVideoPreview {
+  width: 60vw;    /* 60% of viewport width — responsive to screen size */
+  max-width: 800px;   /* caps width on large screens so video doesn't stretch too wide */
+  aspect-ratio: 16 / 9;   /* maintains standard widescreen ratio — height auto-adjusts with width */
+  border: 2px solid #7c5cbf;
+  border-radius: 16px;
+  overflow: hidden;   /* clips video content to stay within rounded border corners */
+  background-color: #000;
+}
+
+.lobbySelfVideoPreview video {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  transform: scaleX(-1); /* mirror — feels natural like selfie cam */
+}
+
+@media (max-width: 600px) {
+  .lobbySelfVideoPreview {
+    width: 90vw;
+    aspect-ratio: 4 / 3;  /* taller ratio fits mobile portrait screens better */
+  }
+
+  .lobbyTextField {
+    flex-direction: column;
+    width: 90%;
+  }
+}
+
+/* Video Conference View */
+
 .meetVideoContainer{
     position:relative;
     height: 100vh;
-  /* background-color: #1a112e;  */
+    /* background-color: #1a112e;  */
     background-color: rgb(1, 4, 48);  
 }
 
