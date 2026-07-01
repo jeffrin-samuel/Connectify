@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from "react-router";
+import { useParams } from "react-router-dom";
 import io from "socket.io-client";
 import { Badge, IconButton, TextField } from '@mui/material';
 import { Button } from '@mui/material';
@@ -15,7 +16,9 @@ import "../styles/VideoMeet.css";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-
+import Typography from '@mui/material/Typography';
+import { useContext } from "react";
+import { MeetingContext } from "../contexts/MeetingContext";
 
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -156,14 +159,26 @@ export default function VideoMeet() {
   const [askForUsername, setAskForUsername] = useState(true); // show lobby screen first
   const [username, setUsername] = useState("");
   const [showModal, setShowModal] = useState(false);           // chat panel toggle
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // ---------- Remote participants currently in the call ----------
   const [videos, setVideos] = useState([]);
 
+  // ------------ Meeting Id ---------------------------------------
+  const [meetingId, setMeetingId] = useState(null);
+
   /* TODO: detect non-Chrome browsers — some WebRTC/getDisplayMedia behaviour
      differs (or is unsupported) outside Chromium-based browsers.                      */
 
+  // -------------- Lobby AI summary-info for logged in users -------------------
+
+    useEffect(() => {
+      setIsLoggedIn(!!localStorage.getItem("token"));
+    }, []); // runs after mount — token guaranteed to be in localStorage by then
+
   //  ---------------- Permissions -----------------------------
+
+
 
   const getPermissions = async () => {
     try {
@@ -310,7 +325,6 @@ export default function VideoMeet() {
 
   };
 
-  //DOING CHANGES NOW    -----> REMOVE THIS
 
   let silence = () => {
 
@@ -605,9 +619,26 @@ useEffect(() => {
 }, []);
 
 
-  let connect = () => {
+  const { url: meetingCode } = useParams();
+
+  const { saveChatMessages, addToUserHistory } = useContext(MeetingContext);
+
+
+  let connect = async () => {
 
     if(!username) return;
+
+    const token = localStorage.getItem("token");
+
+    if(token){
+        try {
+            const response = await addToUserHistory(meetingCode);
+            setMeetingId(response?.meetingId || null); // store the specific _id
+        } catch(err) {
+            console.error("Failed to save meeting history:", err);
+            // no err throw since it will block joining if history save fails
+        }
+    }
 
     setAskForUsername(false);
     getMedia();
@@ -813,7 +844,15 @@ useEffect(() => {
 
   // --------------------- Call-end ------------------------------------------------------
 
-  let handleEndCall = () => {
+  let handleEndCall = async () => {
+
+    // Save chat messages to DB before ending the call
+    try {
+      await saveChatMessages(meetingId, messages);
+    } catch(err) {
+      console.error("Error saving chat history: ", err);
+      // no err throw — chat save failing shouldn't block ending the call
+    }
 
     // stop screen share if active before ending call
     if(screen){
@@ -868,7 +907,6 @@ const handleCopy = () => {
 
 
 
-
   // --------------------- Render ------------------------------------------------------
 
   return (
@@ -883,6 +921,13 @@ const handleCopy = () => {
         <div className='lobbyContainer'>
           
           <h2>Welcome to the Lobby</h2>
+
+          {/* AI summary hint — only shown to logged in users */}
+          {isLoggedIn && (
+              <Typography className='aiInfo' variant="body2" sx={{ color: '#9999bb', textAlign: 'center', fontSize: '0.9rem', mb: 1 }}>
+                💡 Your chats will be AI-summarized after the call — view in History
+              </Typography>
+          )}
 
           <div className="lobbyTextField">
             <TextField

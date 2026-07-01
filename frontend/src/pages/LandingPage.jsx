@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import "../styles/LandingPage.css";
 
 export default function LandingPage() {
 
@@ -32,7 +33,7 @@ export default function LandingPage() {
         </div>
 
         <div className="navList">
-          <p onClick={randomMeetingRoom}>Join as Guest</p>
+          <p className='guestJoin' onClick={randomMeetingRoom}>Join as Guest</p>
 
           <p onClick={redirectToAuthPage}>Register</p>
 
@@ -46,13 +47,17 @@ export default function LandingPage() {
 
       <div className="landingPageMainContainer">
 
-        <div>
+        <div className="mainContent">
           <h1><span style={{color: "#FF9839"}}>Connect</span> with your loved ones</h1>
 
           <p>Cover a distance by Connectify</p>
+
+          <p className="featureHint">
+            Video calls · AI summaries · Meeting history
+          </p>
           
           <Link to={"/auth"} style={{ textDecoration: "none" }}>
-            <div role="button">
+            <div className='getStartedBtn' role="button">
               Get Started
             </div>
           </Link>

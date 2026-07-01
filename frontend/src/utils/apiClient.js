@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const client = axios.create({
-    baseURL: "http://localhost:8000/api/users"
+    baseURL: "http://localhost:8000/api"
 })
 
 // Intercepts every request globally before it's actually sent

@@ -118,7 +118,7 @@ export default function Authentication() {
                 >
                     <Box
                         sx={{
-                            my: 8,
+                            my: { xs: 3, sm: 8 },
                             mx: 4,
                             display: 'flex',
                             flexDirection: 'column',
@@ -138,14 +138,14 @@ export default function Authentication() {
                             <Button
                                 variant={formState === 0 ? 'contained' : 'outlined'}
                                 onClick={() => { setFormState(0); setError(''); }}
-                                sx={{ borderRadius: 2 }}
+                                sx={{ borderRadius: 2,  whiteSpace: 'nowrap' }}
                             >
                                 Sign In
                             </Button>
                             <Button
                                 variant={formState === 1 ? 'contained' : 'outlined'}
                                 onClick={() => { setFormState(1); setError(''); }}
-                                sx={{ borderRadius: 2 }}
+                                sx={{ borderRadius: 2,  whiteSpace: 'nowrap' }}
                             >
                                 Sign Up
                             </Button>
@@ -215,7 +215,7 @@ export default function Authentication() {
                                 type="button"
                                 fullWidth
                                 variant="contained"
-                                sx={{ mt: 3, mb: 2, borderRadius: 2, py: 1.2 }}
+                                sx={{ mt: { xs: 1, sm: 3 }, mb: 2, borderRadius: 2, py: 1.2 }}
                                 onClick={handleAuth}
                             >
                                 {formState === 0 ? 'Login' : 'Register'}

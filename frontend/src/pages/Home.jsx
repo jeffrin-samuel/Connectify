@@ -8,8 +8,6 @@ import { Button, TextField }  from "@mui/material";
 import RestoreIcon from '@mui/icons-material/Restore';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { useContext } from "react";
-import { MeetingContext } from "../contexts/MeetingContext";
 
 // Dark theme matching Connectify's black & purple aesthetic
 const darkTheme = createTheme({
@@ -29,20 +27,11 @@ function Home() {
 
   const [meetingCode, setMeetingCode] = useState("");
 
-  const { addToUserHistory } = useContext(MeetingContext);
-
   let handleJoinVideoCall = async () => {
-
+    
     if(!meetingCode) return;
 
-    try {
-      await addToUserHistory(meetingCode);
-    } catch(err) {
-      console.error("Failed to save meeting history:", err);
-      // history save failing shouldn't block joining the meeting
-    }
-    
-    navigate(`/meet/${meetingCode}`); // always navigate, regardless of history save result
+    navigate(`/meet/${meetingCode}`); 
   }
 
   let handleCreateMeeting = () => {
@@ -72,7 +61,7 @@ function Home() {
           </div>
           
           {/* Navbar right section — History and Logout */}
-          <div style={{ display: "flex", alignItems: "center", marginRight: "2rem", gap: "20px" }}>
+          <div className="navBtns" style={{ display: "flex", alignItems: "center", marginRight: "2rem", gap: "20px" }}>
             
             {/* History button */}
             <div onClick={() => navigate("/history")} className="navItem" style={{color: "#e8e8f0", gap: "4px" }}>
@@ -83,7 +72,7 @@ function Home() {
             {/* Logout button */}
             <Button variant="contained"
               onClick={() => { localStorage.removeItem("token"); navigate("/auth"); }}
-              style={{ color: "#e8e8f0"}}
+              style={{ color: "#e8e8f0",  backgroundColor: "#7c5cbf"}}
             >
               Logout
             </Button>
@@ -126,7 +115,7 @@ function Home() {
           </div>
 
           <div className='rightPanel'>
-            <img srcSet='/video-call-2.png' alt="" />
+            <img src='/video-call-2.png' alt="Video call illustration" />
           </div>
 
         </div>

@@ -45,9 +45,21 @@
   border-color: #7c5cbf !important; /* purple border highlight on hover */
 }
 
+.meetingCard .MuiButton-root {
+  margin-top: 4px; /* spacing between date text and View Summary button */
+}
+
 .noMeetings {
   color: #9999bb;
   font-size: 1.1rem;
   text-align: center;
   margin-top: 4rem;
+}
+
+/* Media Queries (Mobile Responsiveness) */
+
+@media(max-width: 600px){
+  .historyNavBar h2{
+    font-size: 19px;
+  }
 }

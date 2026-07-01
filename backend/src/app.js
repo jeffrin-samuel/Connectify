@@ -10,6 +10,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import userRoutes from "./routes/usersRoutes.js";
 import turnRoutes from "./routes/turnRoutes.js";
+import meetingRoutes from "./routes/meetingRoutes.js";
 
 const app = express(); 
 const server = createServer(app);  // Bridges Express with raw HTTP server
@@ -23,6 +24,7 @@ app.use(express.urlencoded({limit: "40kb", extended: true}));  // Parses URL-enc
 
 app.use("/api/users", userRoutes); // Mounts user routes under /api/users — prefix separates API endpoints from static routes
 app.use("/api/turn", turnRoutes);
+app.use("/api/meetings", meetingRoutes); //meeting-specific routes
 
 const start = async() => {
     

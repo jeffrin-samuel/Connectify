@@ -23,7 +23,7 @@ const login = async(req, res) => {
         const user = await User.findOne({username});
 
         if(!user){
-            return res.status(httpStatus.NOT_FOUND).json({message: "User not found"});
+            return res.status(httpStatus.NOT_FOUND).json({message: "Invalid username or password"});
         }
 
         let isPasswordCorrect = await bcrypt.compare(password, user.password);
@@ -84,6 +84,7 @@ const register = async(req, res) => {
 // GET /api/users/activities
 // protected by authenticate middleware — req.user already set
 const getUserHistory = async (req, res) => {
+    
   try {
     const meetings = await Meeting.find({ user_id: req.user.userId });
     res.status(httpStatus.OK).json(meetings);
@@ -99,15 +100,19 @@ const addToUserHistory = async (req, res) => {
   const { meeting_code } = req.body; // from frontend request body
 
   try {
-    
+
     const newMeeting = new Meeting({
       user_id: req.user.userId,  // from JWT payload via middleware
       meetingCode: meeting_code,
     });
 
     await newMeeting.save();
-    res.status(httpStatus.CREATED).json({ message: "Added meeting to history" });
 
+    res.status(httpStatus.CREATED).json({ 
+        message: "Added meeting to history",
+        meetingId: newMeeting._id  // returns the specific meeting document's _id
+    });
+    
   } catch (err) {
     console.error("Failed to save user history", err);
     res.status(500).json({ message: "Error saving user history" });

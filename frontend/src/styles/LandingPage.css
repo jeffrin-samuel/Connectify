@@ -1,12 +1,11 @@
-/* Landing Page */
-
 .landingPageContainer{
   width: 100vw;
-  height: 100vh;
+   min-height: 100vh;           /* fixes white scroll area */
   background: url("/background.png");
   background-repeat: no-repeat; /* prevents background image from repeating */
   background-size: cover;
   color: white;
+  overflow-x: hidden;          /* prevents horizontal scroll */
 }
 
 .landingPageContainer nav{
@@ -68,7 +67,6 @@
 .landingPageMainContainer > div:nth-child(1) div[role='button'] {
   color:white;
   font-size: 1.65rem;
-  
 }
 
 .landingPageMainContainer > div:nth-child(2) img {
@@ -76,97 +74,66 @@
   width: auto;
 }
 
-/* Home Page */
-
-.navItem {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+.featureHint {
+  display: block; 
+  color: #a8a1a1;
+  font-size: 1.05rem;
 }
 
-.navItem:hover {
-  background-color: #1e1e2e; /* subtle dark highlight on hover */
+.landingPageMainContainer .mainContent p{
+    margin-top: 0.8rem;
 }
 
-.meetContainer {
-  display: flex;
-  padding-inline: 20px;
-  height: 80vh;
-  gap: 10vw;
-  justify-content: center;
-  background-color: #141422;
-}
+@media (max-width: 600px) {
 
-.leftPanel {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  color: #e8e8f0;
-}
-
-.leftPanel h1 {
-  color: #e8e8f0;
-  font-size: 2.3rem;
-}
-
-.rightPanel {
-  display: flex;
-  align-items: center;
-}
-
-.rightPanel > img {
-  width: 30vw;
-  height: auto;
-  border-radius: 20px;
-  opacity: 0.9;
-  filter: drop-shadow(0 0 20px rgba(124, 92, 191, 0.3)); /* subtle purple glow */
-}
-
-/* Media Queries (Mobile Responsiveness) */
-
-@media(max-width: 600px){
-
-  .navBar{
-    padding-inline: 0px !important;
-  }
-
-  .navBar .navItem{
-    width: 50%
-  }
-
-  .navBar .navBtns{
-    padding-left: 20px;
-    width: 53%;
-  }
-
-  .meetContainer{
-    flex-direction: column-reverse;
-    padding: 15px 20px;
-    gap: 5px;
-    margin-top: 10px;
-  }
-
-  .leftPanel h1{
-    font-size: 32px;
-  }
-
- /* let content determine height 
-    .leftPanel {
-      height: auto;
-    }   
- */
-
-  .rightPanel{
-    height: 50%;
+  .landingPageMainContainer {
+    flex-direction: column;  /* stack vertically on mobile */
+    height: auto;
+    padding-inline: 0.5rem;
+    padding-block: 40%;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;  /* align text to left */
   }
 
-  .rightPanel > img {
-    height: 100%;
-    width: 90%;
+  .landingPageMainContainer > div:nth-child(1) {
+    font-size: 1.2rem;            
+  } 
+
+  .landingPageMainContainer > div:nth-child(1) h1 {
+    font-size: 1.75rem;
+    white-space: nowrap;  
   }
+
+  .landingPageMainContainer > div:nth-child(2) img {
+   display: none; /* hide on mobile */
+  }
+
+  .landingPageContainer nav .navList {
+    gap: 0.65rem;                   /* reduce nav gap */
+  }
+
+  .featureHint {
+    font-size: 0.9rem;
+  }
+
+  .mainContent .getStartedBtn{
+    font-size: 1.15rem !important;
+  }
+
+  /* NavBar */
+
+  .landingPageContainer nav{
+    padding-inline: 7px !important;
+  }
+
+  .navHeader h2{
+    font-size: 25px !important;
+  }
+
+  .navList .guestJoin{
+    white-space: nowrap;
+  }
+
 
 }
+

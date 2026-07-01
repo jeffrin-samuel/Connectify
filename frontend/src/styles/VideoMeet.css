@@ -254,6 +254,30 @@
 
 @media (max-width: 600px) {
 
+  /* Lobby View */
+
+  .lobbyContainer{
+    padding: 0px;
+  }
+
+  .lobbyContainer > h2{
+    font-size: 1.9rem;
+  }
+
+  .lobbyTextField{
+    flex-direction: row;
+  }
+
+  .lobbyContainer .MuiButtonBase-root{
+    width: 5rem;
+  }
+
+  .aiInfo{
+    font-size: 0.74rem !important;
+  }
+
+  /* Conference Video View */
+
   .conferenceView {
     grid-template-columns: 1fr;    /* single column on mobile */
     padding-bottom: 70px;
