@@ -8,9 +8,9 @@
   justify-content: center;
   align-items: center;
   background-color: #20202b; 
-  gap: 1.5rem;  /* vertical gap between children since flex-direction is column */
-  padding: 2rem;  
   box-sizing: border-box;  /* padding included in width/height calculation — prevents unintended overflow */
+  gap: 0.7rem; 
+  padding: 1rem 2rem; 
 }
 
 .lobbyContainer h2 {
@@ -67,6 +67,7 @@
 .meetVideoContainer{
     position:relative;
     height: 100vh;
+    overflow: hidden;
     /* background-color: #1a112e;  */
     background-color: rgb(1, 4, 48);  
 }
@@ -86,7 +87,7 @@
     width: 100vw;
     bottom: 2vh;
     text-align: center;
-    z-index: 1;
+    z-index: 20;
 }
 
 .buttonContainers svg{
@@ -111,7 +112,8 @@
   padding: 10px;
   padding-bottom: 15vh; /* leave space for controls bar */
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .conferenceView video {
@@ -133,7 +135,7 @@
     width: 22vw;
     bottom: 10vh;
     padding-inline: 12px;
-    z-index: 1;
+    z-index: 2;
 }
 
 .chatContainer{
@@ -152,7 +154,7 @@
 }
 
 .chatDisplay{
-    height: 71vh;           /* takes most of the chat container height */
+    height: 69.5vh;           /* takes most of the chat container height */
     overflow-y: auto;       /* scrollable when messages overflow */
 }
 
@@ -202,7 +204,7 @@
   border-radius: 12px;
   padding: 14px 18px;
   width: 340px;
-  z-index: 10;
+  z-index: 25;
 }
 
 .infoPopup p {
@@ -276,32 +278,42 @@
     font-size: 0.74rem !important;
   }
 
+  .accessInfo{
+    font-size: 0.76rem !important;
+  }
+
   /* Conference Video View */
 
+  .selfVideoLabel { 
+    display: none;      /* hidden on mobile phones */
+  }
+
   .conferenceView {
-    grid-template-columns: 1fr;    /* single column on mobile */
+    display: grid; /* switch from flex to grid on mobile */
+    grid-template-columns: 1fr; /* single column */
     padding-bottom: 70px;
     gap: 6px;
   }
-
+  
   .conferenceView video {
-    max-height: 35vh;              /* shorter tiles on mobile */
+    max-height: 35vh;
+    width: 100%; /* grid children need explicit width */
+    max-width: 100%;
   }
 
   .meetUserSelfVideo {
-    width: 100px;                  /* smaller floating tile on mobile */
-    bottom: 78px;
+    width: 150px;                  /* smaller floating tile */
     left: 8px;
     border-radius: 10px;
   }
 
   .buttonContainers {
-    height: 64px;
+    height: 70px;
     gap: 2px;
   }
 
   .buttonContainers svg {
-    font-size: 1.6rem;             /* smaller icons on mobile */
+    font-size: 1.85rem;             /* smaller icons on mobile */
   }
 
   .chatRoom {
@@ -309,10 +321,12 @@
     border-radius: 12px 12px 0 0; /* rounded top only */
     bottom: 64px;
     height: calc(100vh - 64px);
+    z-index: 25 !important;  /* ensures chat appears above everything */
   }
 
   .infoPopup {
     width: 90vw;                   /* wider popup on mobile */
     bottom: 72px;
+    z-index: 20 !important;  /* smaller than chatRoom */
   }
 }

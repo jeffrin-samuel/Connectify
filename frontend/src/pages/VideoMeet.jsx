@@ -19,6 +19,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Typography from '@mui/material/Typography';
 import { useContext } from "react";
 import { MeetingContext } from "../contexts/MeetingContext";
+import CloseIcon from '@mui/icons-material/Close';
 
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -922,9 +923,17 @@ const handleCopy = () => {
           
           <h2>Welcome to the Lobby</h2>
 
+          {/* Permission reminder — always visible so user grants access before joining */}
+          <Typography className='accessInfo'
+            variant="body2" 
+            sx={{ color: '#9999bb', textAlign: 'center', fontSize: '0.85rem', mb: 0.5  }}
+          >
+            ⚠️ Please allow camera and microphone access before joining
+          </Typography>
+
           {/* AI summary hint — only shown to logged in users */}
           {isLoggedIn && (
-              <Typography className='aiInfo' variant="body2" sx={{ color: '#9999bb', textAlign: 'center', fontSize: '0.9rem', mb: 1 }}>
+              <Typography className='aiInfo' variant="body2" sx={{ color: '#9999bb', textAlign: 'center', fontSize: '0.9rem', mb: 0.5 }}>
                 💡 Your chats will be AI-summarized after the call — view in History
               </Typography>
           )}
@@ -958,7 +967,13 @@ const handleCopy = () => {
           <div className='chatRoom'>
 
             <div className='chatContainer'>
-              <h1 style={{marginBottom: "10px"}}>Chat Room</h1>
+             
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: "10px" }}>
+              <h1>Chat Room</h1>
+              <IconButton onClick={() => setShowModal(false)} style={{ color: "black" }}>
+                <CloseIcon />
+              </IconButton>
+            </div>
 
               <div className="chatDisplay">
 
@@ -1040,8 +1055,12 @@ const handleCopy = () => {
           </div>
           
           {/* Self Video Preview */}
-          <video className='meetUserSelfVideo' ref={localVideoRef} autoPlay muted playsInline/>
-          <div className='selfVideoLabel'>{username} (You)</div>
+          {videoAvailable && (
+            <>
+              <video className='meetUserSelfVideo' ref={localVideoRef} autoPlay muted playsInline/>
+              <div className='selfVideoLabel'>{username} (You)</div>
+            </>
+          )}
           
           <div className='conferenceView'>
             {videos.map((video) => (
