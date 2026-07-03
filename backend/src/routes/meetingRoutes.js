@@ -1,4 +1,3 @@
-// backend/src/routes/meetingRoutes.js
 import { Router } from "express";
 import { saveChatMessages, generateSummary } from "../controllers/meetingController.js";
 import authenticate from "../../middleware/auth.js";

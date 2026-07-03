@@ -7,6 +7,7 @@ import VideoMeet from './pages/VideoMeet'
 import Home from './pages/Home'
 import { MeetingProvider } from './contexts/MeetingContext'
 import History from './pages/History'
+import NotFound from './pages/NotFound';
 
 function App() {
   
@@ -28,12 +29,14 @@ function App() {
               <Route path='/history' element = {< History />} />
               <Route path = '/meet/:url' element = {<VideoMeet />} />
 
+              <Route path="*" element={<NotFound />} />
+                
             </Routes>
 
           </MeetingProvider>
 
         </AuthProvider>
-        
+
      </Router>
 
     </div>

@@ -1,3 +1,15 @@
+/**
+ * VideoMeet.jsx — Core video conferencing component
+ * Handles: WebRTC peer connections, Socket.io signaling,
+ * media controls (camera/mic/screen), real-time chat
+ * and conference view rendering.
+ * 
+ * Note: This file is intentionally monolithic to keep all
+ * WebRTC state management in one place, avoiding prop drilling
+ * and context complexity across interconnected media operations.
+ */
+
+
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from "react-router";
 import { useParams } from "react-router-dom";
@@ -20,6 +32,7 @@ import Typography from '@mui/material/Typography';
 import { useContext } from "react";
 import { MeetingContext } from "../contexts/MeetingContext";
 import CloseIcon from '@mui/icons-material/Close';
+import { Snackbar } from '@mui/material';
 
 const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -75,10 +88,6 @@ async function ensureIceServers() {
   }
   return cachedIceServers;
 }
-
-
-// TEMPORARY testing block — forces TURN-only to verify relay works. Remove after testing.
-
 
 // Adds tracks to a peer connection safely.
 // Uses replaceTrack if sender exists (camera/mic toggle case)
@@ -148,8 +157,9 @@ export default function VideoMeet() {
   const [screen, setScreen] = useState();
   const [showInfo, setShowInfo] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [screenShareWarning, setScreenShareWarning] = useState(false);
 
-  // ---------- Chat ----------
+  // ---------- Chat ------------------------
 
   const [messages, setMessages] = useState([]);      // full message history
   const [message, setMessage] = useState("");        // current draft
@@ -168,8 +178,6 @@ export default function VideoMeet() {
   // ------------ Meeting Id ---------------------------------------
   const [meetingId, setMeetingId] = useState(null);
 
-  /* TODO: detect non-Chrome browsers — some WebRTC/getDisplayMedia behaviour
-     differs (or is unsupported) outside Chromium-based browsers.                      */
 
   // -------------- Lobby AI summary-info for logged in users -------------------
 
@@ -177,9 +185,8 @@ export default function VideoMeet() {
       setIsLoggedIn(!!localStorage.getItem("token"));
     }, []); // runs after mount — token guaranteed to be in localStorage by then
 
+  
   //  ---------------- Permissions -----------------------------
-
-
 
   const getPermissions = async () => {
     try {
@@ -267,8 +274,6 @@ export default function VideoMeet() {
 
       await updateTracksOnConnection(connections[id], window.localStream);
 
-
-
       window.localStream.getTracks().forEach(track => {
         try {
           connections[id].addTrack(track, window.localStream);
@@ -307,7 +312,7 @@ export default function VideoMeet() {
 
       for(let id in connections){
 
-        // await replaceTrack before createOffer
+        // await replaceTrack before creating offer
         await updateTracksOnConnection(connections[id], window.localStream);
 
         connections[id].createOffer({ iceRestart: true }).then((description)=>{
@@ -326,7 +331,7 @@ export default function VideoMeet() {
 
   };
 
-
+  
   let silence = () => {
 
     let audioContext = new AudioContext();
@@ -495,7 +500,7 @@ export default function VideoMeet() {
               });
             }
           };
-          // --------------------------------------------------------------------
+          // ------------------------------------------------------------------------------------
 
           connections[socketListId].onicecandidate = (event) => {
             if(event.candidate !== null){
@@ -801,7 +806,17 @@ useEffect(() => {
     }
   }
 
-  let handleScreen = () => {
+  let handleScreen = async () => {
+
+    if(!screen){
+      // show warning BEFORE triggering screen share permission
+      setScreenShareWarning(true);
+      setTimeout(() => {
+          setScreen(true); // slight delay so snackbar appears first
+      }, 2000);
+      return; // exit early — setScreen happens in setTimeout
+    }
+
     if(screen) {
       // turning OFF — stop tracks immediately
       try {
@@ -809,7 +824,19 @@ useEffect(() => {
       } catch(err) {
         console.error("Error stopping screen share:", err);
       }
+      
+      // restore video & audio streams once screen sharing is stopped
+      try {
+        const restoredStream = await navigator.mediaDevices.getUserMedia({
+          video: video,
+          audio: audio
+        });
+        await getUserMediaSuccess(restoredStream);
+      } catch(err) {
+        console.error("Error restoring camera/mic:", err);
+      }
     }
+    
     setScreen(!screen);
   }
 
@@ -906,9 +933,7 @@ const handleCopy = () => {
   setTimeout(() => setCopied(false), 2000);
 }
 
-
-
-  // --------------------- Render ------------------------------------------------------
+// --------------------- Render ------------------------------------------------------
 
   return (
 
@@ -1096,6 +1121,20 @@ const handleCopy = () => {
         </div>
 
       )}
+      <Snackbar
+        open={screenShareWarning}
+        autoHideDuration={3000}
+        onClose={() => setScreenShareWarning(false)}
+        message="💡 Keep mic & camera ON before and during screen sharing"
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{
+            '& .MuiSnackbarContent-root': {
+                backgroundColor: '#1e1e2e',
+                color: '#e8e8f0',
+                border: '1px solid #7c5cbf'
+            }
+        }}
+     />
     </div>
 
   );
