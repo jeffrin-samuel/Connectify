@@ -3,12 +3,14 @@ import axios from 'axios';
 import httpStatus from "http-status";
 import { useNavigate } from "react-router-dom";
 
+const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+
 export const AuthContext = createContext({});
 
 // Axios auto-throws on 4xx/5xx HTTP errors unlike native fetch (which requires manual res.ok check)
 // Error response pre-structured as err.response.data — no manual parsing needed
 const authClient = axios.create({
-    baseURL: "http://localhost:8000/api/users"
+    baseURL: `${SERVER_URL}/api/users`
 })
 
 

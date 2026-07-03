@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const SERVER_URL = import.meta.env.VITE_BACKEND_URL;
+
 const client = axios.create({
-    baseURL: "http://localhost:8000/api"
+    baseURL: `${SERVER_URL}/api`
 })
 
 // Intercepts every request globally before it's actually sent
