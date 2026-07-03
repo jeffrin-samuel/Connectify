@@ -26,6 +26,8 @@ app.use("/api/users", userRoutes); // Mounts user routes under /api/users — pr
 app.use("/api/turn", turnRoutes);
 app.use("/api/meetings", meetingRoutes); //meeting-specific routes
 
+app.get("/health", (req, res) => res.send("OK")); // health check endpoint — keeps server alive via UptimeRobot pings
+
 const start = async() => {
     
     const mongoUri = process.env.MONGODB_URI;
