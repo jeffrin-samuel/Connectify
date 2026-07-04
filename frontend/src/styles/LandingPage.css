@@ -1,3 +1,8 @@
+* {
+  -webkit-tap-highlight-color: transparent; /* removes blue box on tap */
+}
+
+
 .landingPageContainer{
   width: 100vw;
    min-height: 100vh;           /* fixes white scroll area */
@@ -84,6 +89,9 @@
     margin-top: 0.8rem;
 }
 
+.mobileNavIcon { display: none  !important;}
+.desktopNavText { display: block  !important; }
+
 @media (max-width: 600px) {
 
   .landingPageMainContainer {
@@ -134,6 +142,35 @@
     white-space: nowrap;
   }
 
+}
 
+@media (max-width: 480px) {
+  .landingPageContainer nav {
+    padding-inline: 12px !important;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .landingPageContainer nav .navList p {
+    font-size: 0.93rem; /* smaller nav items */
+    white-space: nowrap;
+  }
+
+  .landingPageContainer nav .navList {
+    gap: 0.55rem;
+  }
+
+  .landingPageMainContainer > div:nth-child(1) h1 {
+    font-size: 1.5rem;
+    white-space: normal; /* allow wrapping */
+  }
+
+  .mobileNavIcon{ 
+    display: block  !important;
+    font-size: "40px"  !important; 
+    color: "white"  !important;  
+  }
+
+  .desktopNavText { display: none  !important; }
 }
 

@@ -105,13 +105,11 @@ async function updateTracksOnConnection(connection, stream) {
     });
 
     if(sender){
-      console.log(`[REPLACE] Replacing ${track.kind} track`);
       return sender.replaceTrack(track);
     } else {
       // no active sender found — check if there's a nulled sender to reuse
       const nulledSender = senders.find(s => s.track === null);
       if(nulledSender){
-        console.log(`[RESTORE] Restoring nulled sender with ${track.kind} track`);
         return nulledSender.replaceTrack(track);
       }
       console.log(`[ADD] Adding new ${track.kind} track`);
@@ -124,7 +122,6 @@ async function updateTracksOnConnection(connection, stream) {
     if(!sender.track) return;
     const stillNeeded = stream.getTracks().some(t => t.kind === sender.track.kind);
     if(!stillNeeded){
-      console.log(`[SILENCE] Nulling ${sender.track.kind} sender — not in new stream`);
       promises.push(sender.replaceTrack(null));
     }
   });
@@ -316,9 +313,7 @@ export default function VideoMeet() {
         await updateTracksOnConnection(connections[id], window.localStream);
 
         connections[id].createOffer({ iceRestart: true }).then((description)=>{
-          
-          console.log(`[OFFER] Re-offer (track ended) for ${id}:`, description); //logs full SDP offer object
-          
+
           connections[id].setLocalDescription(description)
           .then(()=>{
             socketRef.current.emit("signal", id, JSON.stringify({"sdp": connections[id].localDescription}));
@@ -416,8 +411,6 @@ export default function VideoMeet() {
 
             connections[fromId].createAnswer().then((description) => {
 
-              console.log(`[ANSWER] Created for ${fromId}:`, description); // logs full SDP answer object
-
               connections[fromId].setLocalDescription(description).then(()=>{
                 socketRef.current.emit("signal", fromId, JSON.stringify({ "sdp": connections[fromId].localDescription }));
 
@@ -457,9 +450,6 @@ export default function VideoMeet() {
 
       socketRef.current.on("user-joined", (userJoinedId, clients, usernameMap) => {
 
-        console.log("[USER-JOINED] userJoinedId:", userJoinedId);
-        console.log("[USER-JOINED] clients:", clients);
-
         clients.forEach((socketListId) => {
 
           if (socketListId === socketIdRef.current) return; // skip self — no peer connection needed with yourself
@@ -472,7 +462,8 @@ export default function VideoMeet() {
 
           connections[socketListId] = peerConnection;
 
-          // ----------- ICE connection monitor ---------------------------------------------------
+          /* ----------- ICE connection monitor (Uncomment for testing purpose) ---------------------------------------------------
+
           connections[socketListId].oniceconnectionstatechange = () => {
 
             console.log(`[ICE STATE] ${socketListId}: ${connections[socketListId].iceConnectionState}`);
@@ -491,6 +482,7 @@ export default function VideoMeet() {
                 if (report.type === "candidate-pair" && report.nominated && report.state === "succeeded") {
                   const local = candidates[report.localCandidateId];
                   const remote = candidates[report.remoteCandidateId];
+
                   console.log(`[ICE] Connected to ${socketListId}`);
                   console.log(`[ICE] Local:  ${local?.candidateType}`);
                   console.log(`[ICE] Remote: ${remote?.candidateType}`);
@@ -500,7 +492,7 @@ export default function VideoMeet() {
               });
             }
           };
-          // ------------------------------------------------------------------------------------
+          ------------------------------------------------------------------------------------   */
 
           connections[socketListId].onicecandidate = (event) => {
             if(event.candidate !== null){
@@ -585,8 +577,6 @@ export default function VideoMeet() {
             });
 
             connections[id].createOffer({ iceRestart: true }).then((description) => {
-
-              console.log(`[OFFER] Created for ${id}:`, description); //logs full SDP offer object
 
               connections[id].setLocalDescription(description)
               .then(() => {
@@ -753,8 +743,6 @@ useEffect(() => {
       if(screenEndHandled) return; // prevent double trigger
       screenEndHandled = true;
       
-      console.log("[SCREEN END] video:", video, "audio:", audio);
-
       setScreen(false);
 
       // stop all combined stream tracks
@@ -770,8 +758,7 @@ useEffect(() => {
           video: video,
           audio: audio
         });
-        console.log("[SCREEN END] restored tracks:", restoredStream.getTracks().map(t => t.kind));
-        
+      
         await getUserMediaSuccess(restoredStream);
       } catch(err) {
         // permissions unavailable — show black silence

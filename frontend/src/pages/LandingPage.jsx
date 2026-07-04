@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import DuoIcon from '@mui/icons-material/Duo';
 import "../styles/LandingPage.css";
 
 export default function LandingPage() {
@@ -27,9 +28,14 @@ export default function LandingPage() {
     <div className="landingPageContainer">
 
       <nav>
-
+        
+        {/* Show icon only on mobile, text on desktop */}
         <div className="navHeader">
-          <h2>Connectify</h2>
+          <DuoIcon 
+            className="mobileNavIcon" 
+            sx={{ fontSize: "35px", color: "#ffffff" }}
+          />
+          <h2 className="desktopNavText">Connectify</h2>
         </div>
 
         <div className="navList">

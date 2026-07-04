@@ -7,7 +7,7 @@ let timeOnline = {}
 export default function connectToSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: "*",
+            origin: process.env.FRONTEND_URL || "http://localhost:5173",
             methods: ["GET", "POST"],
             allowedHeaders: ["*"],
             credentials: true,
@@ -16,7 +16,7 @@ export default function connectToSocket(server) {
 
     io.on("connection", (socket)=>{
 
-        console.log("Something Connected");  //for testing
+        // console.log("Something Connected");  // testing purpose
 
         socket.on("join-call", (path, username) => {   //In which path (the url) is the participant trying to join eg localhost/2836
             
@@ -77,7 +77,7 @@ export default function connectToSocket(server) {
                 }
 
                 messages[matchingRoom].push({ "sender": sender, "data": data, "socket-id-sender": socket.id }); 
-                console.log("message", ":", sender, data);
+                //console.log("message", ":", sender, data);    // testing purpose
 
                 connections[matchingRoom].forEach(elem => {    
                     io.to(elem).emit("chat-message", data, sender, socket.id);
@@ -87,7 +87,7 @@ export default function connectToSocket(server) {
         });
 
         socket.on("disconnect", () => {
-            console.log(`${socket.data.username} disconnected`);
+           // console.log(`${socket.data.username} disconnected`);   // testing purpose
             
             let roomKey;
 

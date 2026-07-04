@@ -308,7 +308,7 @@
   }
 
   .buttonContainers {
-    height: 70px;
+    height: 12vh;  /* scales with screen height */
     gap: 2px;
   }
 
