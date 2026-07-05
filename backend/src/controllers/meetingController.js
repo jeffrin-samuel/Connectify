@@ -110,7 +110,7 @@ const generateSummary = async (req, res) => {
     } catch(err) {
         console.error("Gemini summary error:", err);
         
-        if(err.response?.status === 503){
+        if(err.response?.status === 503 || err.response?.status === 429){
             return res.status(503).json({ message: "Service unavailable. Please try again later"});
         }
         
