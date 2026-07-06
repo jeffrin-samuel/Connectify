@@ -105,16 +105,13 @@ async function updateTracksOnConnection(connection, stream) {
     });
 
     if(sender){
-      console.log(`[REPLACE] Replacing ${track.kind} track`);   //for testing purpose
       return sender.replaceTrack(track);
     } else {
       // no active sender found — check if there's a nulled sender to reuse
       const nulledSender = senders.find(s => s.track === null);
       if(nulledSender){
-        console.log(`[RESTORE] Restoring nulled sender with ${track.kind} track`);  //for testing purpose
         return nulledSender.replaceTrack(track);
       }
-      console.log(`[ADD] Adding new ${track.kind} track`);
       connection.addTrack(track, stream);
       return Promise.resolve();
     }
@@ -124,7 +121,6 @@ async function updateTracksOnConnection(connection, stream) {
     if(!sender.track) return;
     const stillNeeded = stream.getTracks().some(t => t.kind === sender.track.kind);
     if(!stillNeeded){
-      console.log(`[SILENCE] Nulling ${sender.track.kind} sender — not in new stream`); //for testing purpose
       promises.push(sender.replaceTrack(null));
     }
   });
@@ -284,8 +280,6 @@ export default function VideoMeet() {
 
       connections[id].createOffer({ iceRestart: true }).then((description) => {
 
-        console.log(`[OFFER] Created for ${id}:`, description); //logs full SDP offer object (for testing purpose)
-
         connections[id].setLocalDescription(description)
         .then(() => {
           socketRef.current.emit("signal", id, JSON.stringify({"sdp": connections[id].localDescription}));
@@ -316,8 +310,6 @@ export default function VideoMeet() {
         await updateTracksOnConnection(connections[id], window.localStream);
 
         connections[id].createOffer({ iceRestart: true }).then((description)=>{
-
-          console.log(`[OFFER] Re-offer (track ended) created for ${id}:`, description); //logs full SDP offer object (for testing purpose)
 
           connections[id].setLocalDescription(description)
           .then(()=>{
@@ -416,8 +408,6 @@ export default function VideoMeet() {
 
             connections[fromId].createAnswer().then((description) => {
 
-              console.log(`[ANSWER] Created for ${fromId}:`, description); // logs full SDP answer object (for testing purpose)
-
               connections[fromId].setLocalDescription(description).then(()=>{
                 socketRef.current.emit("signal", fromId, JSON.stringify({ "sdp": connections[fromId].localDescription }));
 
@@ -428,9 +418,6 @@ export default function VideoMeet() {
       }
 
       if(signal.ice){
-  
-        console.log("[ICE RECEIVED]", signal.ice.candidate); //for testing purpose
-
         connections[fromId].addIceCandidate(new RTCIceCandidate(signal.ice)).catch(e => console.error("Error", e));
       }
 
@@ -440,8 +427,6 @@ export default function VideoMeet() {
   let connectToSocketServer = async () => {
 
     const iceServers = await ensureIceServers(); // fetch once before socket connects
-
-    console.log("[ICE SERVERS]", iceServers); //for testing purpose
 
     socketRef.current = io.connect(SERVER_URL, {secure: false});
 
@@ -462,9 +447,6 @@ export default function VideoMeet() {
 
       socketRef.current.on("user-joined", (userJoinedId, clients, usernameMap) => {
 
-        console.log("[USER-JOINED] userJoinedId:", userJoinedId); //for testing purpose
-        console.log("[USER-JOINED] clients:", clients); //for testing purpose
-
         clients.forEach((socketListId) => {
 
           if (socketListId === socketIdRef.current) return; // skip self — no peer connection needed with yourself
@@ -477,44 +459,39 @@ export default function VideoMeet() {
 
           connections[socketListId] = peerConnection;
 
-          /* ----------- ICE connection monitor (Uncomment for testing purpose) --------------------------------------------------- */
+          /* ----------- Production ICE monitor — identifies connection type (host/srflx/relay) --------------------------------------------------- */
 
           connections[socketListId].oniceconnectionstatechange = () => {
+            const state = connections[socketListId].iceConnectionState;
+            console.log(`[ICE] ${socketListId.slice(0,6)} → ${state}`);
 
-            console.log(`[ICE STATE] ${socketListId}: ${connections[socketListId].iceConnectionState}`);
-
-            if (connections[socketListId].iceConnectionState === "connected") {
-              connections[socketListId].getStats().then(stats => {
-
-                const candidates = {};
-                stats.forEach(report => {
-                  if (report.type === "local-candidate" || report.type === "remote-candidate") {
-                    candidates[report.id] = report;
-                  }
+            if(state === "connected"){
+                connections[socketListId].getStats().then(stats => {
+                    const candidates = {};
+                    stats.forEach(report => {
+                        if(report.type === "local-candidate" || report.type === "remote-candidate"){
+                            candidates[report.id] = report;
+                        }
+                    });
+                    stats.forEach(report => {
+                        if(report.type === "candidate-pair" && report.nominated && report.state === "succeeded"){
+                            const local = candidates[report.localCandidateId];
+                            const remote = candidates[report.remoteCandidateId];
+                            console.log(`[ICE] Peer: ${socketListId.slice(0,6)} | Local: ${local?.candidateType} | Remote: ${remote?.candidateType}`);
+                        }
+                    });
                 });
+            }
 
-                stats.forEach(report => {
-                if (report.type === "candidate-pair" && report.nominated && report.state === "succeeded") {
-                  const local = candidates[report.localCandidateId];
-                  const remote = candidates[report.remoteCandidateId];
-
-                  console.log(`[ICE] Connected to ${socketListId}`);
-                  console.log(`[ICE] Local:  ${local?.candidateType}`);
-                  console.log(`[ICE] Remote: ${remote?.candidateType}`);
-                }
-                });
-
-              });
+            if(state === "failed"){
+                console.warn(`[ICE] Connection FAILED for ${socketListId.slice(0,6)} — likely needs TURN`);
             }
           };
 
-        /*  ------------------------------------------------------------------------------------   */
+        /*  --------------------------------------------------------------------------------------------------------------------------------------   */
 
           connections[socketListId].onicecandidate = (event) => {
             if(event.candidate !== null){
-
-              console.log("[ICE SENT]", event.candidate.candidate); //for testing purpose
-
               socketRef.current.emit("signal", socketListId, JSON.stringify({ 'ice': event.candidate }));
             }
           }
@@ -523,14 +500,9 @@ export default function VideoMeet() {
 
             const stream = event.streams[0];
 
-             console.log(                            //for testing purpose
-                `[TRACK RECEIVED] ${socketListId}`,
-                stream.getTracks().map(track => ({
-                  kind: track.kind,
-                  readyState: track.readyState,
-                  enabled: track.enabled
-                }))
-              );
+            // confirms video/audio tracks arriving from peer
+            console.log(`[TRACK] Received from ${socketListId.slice(0,6)}:`, 
+            stream.getTracks().map(t => t.kind));
 
             if (!stream) return;
 
@@ -606,8 +578,6 @@ export default function VideoMeet() {
             });
 
             connections[id].createOffer({ iceRestart: true }).then((description) => {
-
-              console.log(`[OFFER] Created for ${id}:`, description); //logs full SDP offer object (for testing purpose)
 
               connections[id].setLocalDescription(description)
               .then(() => {
@@ -774,8 +744,6 @@ useEffect(() => {
       if(screenEndHandled) return; // prevent double trigger
       screenEndHandled = true;
 
-       console.log("[SCREEN END] video:", video, "audio:", audio); //for testing purpose
-      
       setScreen(false);
 
       // stop all combined stream tracks
@@ -792,8 +760,6 @@ useEffect(() => {
           audio: audio
         });
 
-        console.log("[SCREEN END] restored tracks:", restoredStream.getTracks().map(t => t.kind)); //for testing purpose
-      
         await getUserMediaSuccess(restoredStream);
       } catch(err) {
         // permissions unavailable — show black silence
@@ -853,8 +819,6 @@ useEffect(() => {
           video: video,
           audio: audio
         });
-
-        console.log("[SCREEN END] restored tracks:", restoredStream.getTracks().map(t => t.kind)); //for testing purpose
 
         await getUserMediaSuccess(restoredStream);
       } catch(err) {
