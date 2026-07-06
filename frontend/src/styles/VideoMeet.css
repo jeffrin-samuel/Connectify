@@ -50,6 +50,12 @@
   transform: scaleX(-1); /* mirror — feels natural like selfie cam */
 }
 
+/* Conference View */
+
+.meetUserSelfVideo {
+  transform: scaleX(-1); /* mirror self preview — matches natural mirror reflection */
+}
+
 @media (max-width: 600px) {
   .lobbySelfVideoPreview {
     width: 90vw;
@@ -257,6 +263,16 @@
 @media (max-width: 600px) {
 
   /* Lobby View */
+
+  .lobbySelfVideoPreview {
+    width: 90vw;
+    aspect-ratio: 4 / 3;  /* taller ratio fits mobile portrait screens better */
+  }
+
+  .lobbyTextField {
+    flex-direction: column;
+    width: 90%;
+  }
 
   .lobbyContainer{
     padding: 0px;
