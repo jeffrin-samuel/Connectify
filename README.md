@@ -11,7 +11,7 @@ A full-stack real-time video conferencing application built with the MERN stack,
 - **Peer-to-Peer Video & Audio Calls** — Direct WebRTC connections between participants with camera and microphone controls
 - **Screen Sharing** — Share your screen with live mic audio combined into the stream *(desktop/laptop browsers only — mobile browsers restrict `getDisplayMedia` by design, same limitation as Google Meet's web version)*
 - **Real-Time Chat** — In-call messaging with unread message badge notifications
-- **AI Meeting Summaries** — Post-call summary and action item extraction from chat history via Google Gemini 2.0 Flash API
+- **AI Meeting Summaries** — Post-call summary and action item extraction from chat history via Google Gemini 2.5 Flash API
 - **Meeting History** — Authenticated users can view all their past meetings with AI-generated summaries
 - **Persistent Meeting Chat** — Messages persist until the last participant leaves the meeting, after which each authenticated participant's chat transcript is stored with their meeting history for AI summary and action item generation
 - **STUN/TURN Server Support** — NAT traversal via STUN for direct connections, TURN relay fallback for users behind strict corporate firewalls or CGNAT mobile networks
@@ -29,7 +29,7 @@ A full-stack real-time video conferencing application built with the MERN stack,
 | Backend | Node.js, Express.js, Socket.io |
 | Database | MongoDB Atlas, Mongoose |
 | Real-Time | WebRTC (RTCPeerConnection), Socket.io (signaling) |
-| AI | Google Gemini 2.0 Flash API |
+| AI | Google Gemini 2.5 Flash API |
 | Auth | JWT (jsonwebtoken), bcrypt |
 | NAT Traversal | STUN (Google), TURN (Turnix.io) |
 | Deployment | Render (frontend static site + backend web service) |
